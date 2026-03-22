@@ -8,10 +8,14 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"bytes"
+	"encoding/base64"
+	"strings"
+	"time"
+
 	ilink "github.com/openilink/openilink-sdk-go"
 	"github.com/openilink/openilink-hub/internal/provider"
 	"github.com/youthlin/silk"
-	"bytes"
 )
 
 func init() {
@@ -137,6 +141,10 @@ func (p *Provider) Send(ctx context.Context, msg provider.OutboundMessage) (stri
 
 	// Media send
 	if len(msg.Data) > 0 && msg.FileName != "" {
+		// Voice: encode WAV/PCM to SILK before sending
+		if isVoiceFile(msg.FileName) {
+			return p.sendVoice(ctx, recipient, msg.ContextToken, msg.Data)
+		}
 		err := p.client.SendMediaFile(ctx, recipient, msg.ContextToken, msg.Data, msg.FileName, msg.Text)
 		if err != nil {
 			return "", err
@@ -188,6 +196,63 @@ func (p *Provider) DownloadVoice(ctx context.Context, encryptQueryParam, aesKey 
 
 func decodeSILK(data []byte, sampleRate int) ([]byte, error) {
 	return silk.Decode(bytes.NewReader(data), silk.WithSampleRate(sampleRate))
+}
+
+func isVoiceFile(filename string) bool {
+	lower := strings.ToLower(filename)
+	return strings.HasSuffix(lower, ".wav") ||
+		strings.HasSuffix(lower, ".mp3") ||
+		strings.HasSuffix(lower, ".ogg") ||
+		strings.HasSuffix(lower, ".silk") ||
+		strings.HasSuffix(lower, ".pcm")
+}
+
+// sendVoice encodes audio to SILK, uploads to CDN, and sends as voice message.
+func (p *Provider) sendVoice(ctx context.Context, recipient, contextToken string, data []byte) (string, error) {
+	// Extract PCM from WAV (skip 44-byte header if present)
+	pcm := data
+	if len(data) > 44 && string(data[:4]) == "RIFF" {
+		pcm = data[44:]
+	}
+
+	// Encode PCM → SILK
+	silkData, err := silk.Encode(bytes.NewReader(pcm), silk.SampleRate(24000))
+	if err != nil {
+		return "", fmt.Errorf("silk encode: %w", err)
+	}
+
+	// Upload as voice
+	uploaded, err := p.client.UploadFile(ctx, silkData, recipient, ilink.MediaVoice)
+	if err != nil {
+		return "", fmt.Errorf("upload voice: %w", err)
+	}
+
+	// Build and send voice message
+	clientID := fmt.Sprintf("voice-%d", time.Now().UnixMilli())
+	msg := &ilink.SendMessageReq{
+		Msg: &ilink.WeixinMessage{
+			ToUserID:     recipient,
+			ClientID:     clientID,
+			MessageType:  ilink.MsgTypeBot,
+			MessageState: ilink.StateFinish,
+			ContextToken: contextToken,
+			ItemList: []ilink.MessageItem{{
+				Type: ilink.ItemVoice,
+				VoiceItem: &ilink.VoiceItem{
+					Media: &ilink.CDNMedia{
+						EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
+						AESKey:            base64.StdEncoding.EncodeToString([]byte(uploaded.AESKey)),
+					},
+					EncodeType: 6, // SILK
+					SampleRate: 24000,
+				},
+			}},
+		},
+	}
+	if err := p.client.SendMessage(ctx, msg); err != nil {
+		return "", err
+	}
+	return clientID, nil
 }
 
 func convertInbound(msg ilink.WeixinMessage) provider.InboundMessage {
