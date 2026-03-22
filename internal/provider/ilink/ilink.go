@@ -360,8 +360,9 @@ func (p *Provider) sendVoice(ctx context.Context, recipient, contextToken string
 					Media: &ilink.CDNMedia{
 						EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
 						AESKey:            base64.StdEncoding.EncodeToString([]byte(uploaded.AESKey)),
+						EncryptType:       ilink.EncryptAES128ECB,
 					},
-					EncodeType:    4, // SILK with STX
+					EncodeType:    4,
 					SampleRate:    wav.SampleRate,
 					BitsPerSample: 16,
 					PlayTime:      playTime,
