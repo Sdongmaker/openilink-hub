@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/openilink/openilink-hub/internal/database"
 )
@@ -131,8 +132,22 @@ func (s *Server) handleChannelSend(w http.ResponseWriter, r *http.Request) {
 	if content == "" && msg.FileName != "" {
 		content = msg.FileName
 	}
+	payloadMap := map[string]any{"content": content}
+
+	if len(msg.Data) > 0 && s.Store != nil {
+		ct := detectContentType(msgType)
+		ext := detectExt(msg.FileName, msgType)
+		key := fmt.Sprintf("%s/%s/out_%d%s", ch.BotID,
+			time.Now().Format("2006/01/02"), time.Now().UnixMilli(), ext)
+		if _, err := s.Store.Put(r.Context(), key, ct, msg.Data); err == nil {
+			payloadMap["media_key"] = key
+			payloadMap["media_type"] = msgType
+			payloadMap["media_status"] = "ready"
+		}
+	}
+
 	chID := ch.ID
-	payload, _ := json.Marshal(map[string]string{"content": content})
+	payload, _ := json.Marshal(payloadMap)
 	s.DB.SaveMessage(&database.Message{
 		BotID:     ch.BotID,
 		ChannelID: &chID,

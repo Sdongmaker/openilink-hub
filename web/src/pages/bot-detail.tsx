@@ -206,6 +206,11 @@ export function BotDetailPage() {
             <div ref={bottomRef} />
           </div>
 
+          {sending && (
+            <div className="px-4 py-2 text-xs text-muted-foreground bg-secondary border-t animate-pulse">
+              发送中...
+            </div>
+          )}
           {sendError && (
             <div className="px-4 py-2 text-xs text-destructive bg-secondary border-t">
               {sendError}

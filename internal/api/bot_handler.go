@@ -7,7 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
+	"time"
 
 	ilinkProvider "github.com/openilink/openilink-hub/internal/provider/ilink"
 	"github.com/openilink/openilink-hub/internal/auth"
@@ -259,12 +261,27 @@ func (s *Server) handleBotSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save outbound message
+	// Save outbound message (store media to MinIO if available)
 	content := msg.Text
 	if content == "" && msg.FileName != "" {
 		content = msg.FileName
 	}
-	payload, _ := json.Marshal(map[string]string{"content": content})
+	payloadMap := map[string]any{"content": content}
+
+	if len(msg.Data) > 0 && s.Store != nil {
+		ct := detectContentType(msgType)
+		ext := detectExt(msg.FileName, msgType)
+		key := fmt.Sprintf("%s/%s/out_%d%s", botID,
+			time.Now().Format("2006/01/02"), time.Now().UnixMilli(), ext)
+		if url, err := s.Store.Put(r.Context(), key, ct, msg.Data); err == nil {
+			payloadMap["media_key"] = key
+			payloadMap["media_type"] = msgType
+			payloadMap["media_status"] = "ready"
+			_ = url
+		}
+	}
+
+	payload, _ := json.Marshal(payloadMap)
 	s.DB.SaveMessage(&database.Message{
 		BotID:     botID,
 		Direction: "outbound",
@@ -295,6 +312,35 @@ func detectMediaType(filename, mime string) string {
 		return "voice"
 	default:
 		return "file"
+	}
+}
+
+func detectContentType(msgType string) string {
+	switch msgType {
+	case "image":
+		return "image/jpeg"
+	case "video":
+		return "video/mp4"
+	case "voice":
+		return "audio/wav"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func detectExt(filename, msgType string) string {
+	if ext := filepath.Ext(filename); ext != "" {
+		return ext
+	}
+	switch msgType {
+	case "image":
+		return ".jpg"
+	case "video":
+		return ".mp4"
+	case "voice":
+		return ".wav"
+	default:
+		return ""
 	}
 }
 
