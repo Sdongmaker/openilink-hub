@@ -168,8 +168,10 @@ export function BotDetailPage() {
     }]);
     const text = input;
     setInput("");
-    await doSend({ text });
-    setMessages((prev) => prev.map((m) => m.id === optId ? { ...m, payload: { ...m.payload, _sending: false } } : m));
+    const err = await doSend({ text });
+    setMessages((prev) => prev.map((m) => m.id === optId
+      ? { ...m, payload: { ...m.payload, _sending: false, _error: err || undefined } }
+      : m));
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -217,11 +219,13 @@ export function BotDetailPage() {
     setInput("");
     setPendingFile(null);
     setPendingPreview(null);
-    await doSend(form);
-    setMessages((prev) => prev.map((m) => m.id === optId ? { ...m, payload: { ...m.payload, _sending: false } } : m));
+    const err = await doSend(form);
+    setMessages((prev) => prev.map((m) => m.id === optId
+      ? { ...m, payload: { ...m.payload, _sending: false, _error: err || undefined } }
+      : m));
   }
 
-  async function doSend(body: any) {
+  async function doSend(body: any): Promise<string | null> {
     setSending(true);
     setSendError("");
     try {
@@ -234,20 +238,17 @@ export function BotDetailPage() {
       const data = await res.json();
       if (!res.ok) {
         const msg = data.error || "";
-        if (msg.includes("context token")) {
-          setSendError("请先从微信给 Bot 发一条消息，建立会话后才能回复");
-        } else if (msg.includes("not connected")) {
-          setSendError("Bot 未连接，请返回重新连接");
-        } else {
-          setSendError(msg || "发送失败");
-        }
-      } else {
-        setTimeout(loadMessages, 500);
+        if (msg.includes("context token")) return "请先从微信给 Bot 发一条消息";
+        if (msg.includes("not connected")) return "Bot 未连接";
+        return msg || "发送失败";
       }
+      setTimeout(loadMessages, 500);
+      return null;
     } catch {
-      setSendError("网络错误");
+      return "网络错误";
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   }
 
   if (!bot) return <p className="text-sm text-muted-foreground p-8">加载中...</p>;
@@ -285,6 +286,7 @@ export function BotDetailPage() {
             {messages.map((m) => {
               const isIn = m.direction === "inbound";
               const isSending = m.payload?._sending;
+              const sendErr = m.payload?._error;
               return (
                 <div key={m.id} className={`flex ${isIn ? "justify-start" : "justify-end"}`}>
                   <div className={`max-w-[75%] px-3 py-2 rounded-xl text-sm ${
@@ -292,7 +294,9 @@ export function BotDetailPage() {
                   } ${isSending ? "opacity-60" : ""}`}>
                     <MessageContent m={m} />
                     <div className={`text-[10px] mt-1 ${isIn ? "text-muted-foreground" : "opacity-50"}`}>
-                      {isSending ? "发送中..." : new Date(m.created_at * 1000).toLocaleTimeString()}
+                      {isSending ? "发送中..." : sendErr ? (
+                        <span className="text-destructive">{sendErr}</span>
+                      ) : new Date(m.created_at * 1000).toLocaleTimeString()}
                     </div>
                   </div>
                 </div>
@@ -304,11 +308,6 @@ export function BotDetailPage() {
             <div ref={bottomRef} />
           </div>
 
-          {sendError && (
-            <div className="px-4 py-2 text-xs text-destructive bg-secondary border-t">
-              {sendError}
-            </div>
-          )}
           {pendingFile && (
             <div className="px-4 py-2 border-t bg-secondary/50 flex items-center gap-3">
               {pendingPreview && pendingFile?.type.startsWith("image/") ? (
