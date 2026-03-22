@@ -166,10 +166,7 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 
 	_ = m.db.IncrBotMsgCount(inst.DBID)
 
-	// Process media files (store to MinIO or generate proxy URLs)
-	m.processMedia(inst, &msg)
-
-	// Build payload with media URLs
+	// Build payload — store raw media references, not full URLs
 	payloadMap := map[string]any{"content": content}
 	if msg.GroupID != "" {
 		payloadMap["group_id"] = msg.GroupID
@@ -177,11 +174,25 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 	if msg.ContextToken != "" {
 		payloadMap["context_token"] = msg.ContextToken
 	}
-	// Include media URLs in payload
+	for _, item := range msg.Items {
+		if item.Media != nil && item.Media.EncryptQueryParam != "" {
+			// Always store original CDN params
+			payloadMap["media_cdn"] = map[string]string{
+				"eqp": item.Media.EncryptQueryParam,
+				"aes": item.Media.AESKey,
+			}
+			payloadMap["media_type"] = item.Media.MediaType
+			break
+		}
+	}
+
+	// Process media: download to MinIO (sets item.Media.URL for relay/webhook)
+	m.processMedia(inst, &msg)
+
+	// If stored to MinIO, also save the storage key
 	for _, item := range msg.Items {
 		if item.Media != nil && item.Media.URL != "" {
-			payloadMap["media_url"] = item.Media.URL
-			payloadMap["media_type"] = item.Media.MediaType
+			payloadMap["media_key"] = extractMediaKey(item.Media.URL)
 			break
 		}
 	}
@@ -295,6 +306,16 @@ func (m *Manager) processMedia(inst *Instance, msg *provider.InboundMessage) {
 				mediaContentType(item.Type))
 		}
 	}
+}
+
+func extractMediaKey(url string) string {
+	// URL is like "https://hub.example.com/api/v1/media/media/bot-id/msg/0.jpg"
+	// Extract "media/bot-id/msg/0.jpg"
+	idx := strings.Index(url, "/media/")
+	if idx >= 0 {
+		return url[idx+1:] // skip the leading "/"
+	}
+	return url
 }
 
 func mediaExt(itemType string) string {
