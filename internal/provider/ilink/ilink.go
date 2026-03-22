@@ -152,14 +152,22 @@ func (p *Provider) Send(ctx context.Context, msg provider.OutboundMessage) (stri
 		recipient = p.creds.ILinkUserID
 	}
 
+	slog.Info("send", "recipient", recipient, "has_data", len(msg.Data) > 0,
+		"file", msg.FileName, "text_len", len(msg.Text), "context_token", msg.ContextToken)
+
 	// Media send
 	if len(msg.Data) > 0 && msg.FileName != "" {
 		// Voice: encode WAV/PCM to SILK before sending
 		if isVoiceFile(msg.FileName) {
-			return p.sendVoice(ctx, recipient, msg.ContextToken, msg.Data)
+			clientID, err := p.sendVoice(ctx, recipient, msg.ContextToken, msg.Data)
+			if err != nil {
+				slog.Error("send voice failed", "err", err)
+			}
+			return clientID, err
 		}
 		err := p.client.SendMediaFile(ctx, recipient, msg.ContextToken, msg.Data, msg.FileName, msg.Text)
 		if err != nil {
+			slog.Error("send media failed", "err", err)
 			return "", err
 		}
 		return "", nil
@@ -167,9 +175,17 @@ func (p *Provider) Send(ctx context.Context, msg provider.OutboundMessage) (stri
 
 	// Text send
 	if msg.ContextToken != "" {
-		return p.client.SendText(ctx, recipient, msg.Text, msg.ContextToken)
+		clientID, err := p.client.SendText(ctx, recipient, msg.Text, msg.ContextToken)
+		if err != nil {
+			slog.Error("send text failed", "recipient", recipient, "err", err)
+		}
+		return clientID, err
 	}
-	return p.client.Push(ctx, recipient, msg.Text)
+	clientID, err := p.client.Push(ctx, recipient, msg.Text)
+	if err != nil {
+		slog.Error("push text failed", "recipient", recipient, "err", err)
+	}
+	return clientID, err
 }
 
 func (p *Provider) SendTyping(ctx context.Context, recipient, ticket string, typing bool) error {
