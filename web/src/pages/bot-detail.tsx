@@ -8,9 +8,33 @@ import { api } from "../lib/api";
 
 type Message = { id: number; direction: string; sender: string; recipient: string; msg_type: string; payload: any; created_at: number };
 
-function getContent(m: Message): string {
-  if (m.payload?.content) return m.payload.content;
-  return `[${m.msg_type}]`;
+function MessageContent({ m }: { m: Message }) {
+  const url = m.payload?.media_url;
+  const content = m.payload?.content;
+  const mediaType = m.payload?.media_type || m.msg_type;
+
+  if (url && mediaType === "image") {
+    return <img src={url} alt="image" className="max-w-full rounded-lg max-h-48 cursor-pointer" onClick={() => window.open(url)} />;
+  }
+  if (url && mediaType === "video") {
+    return <video src={url} controls className="max-w-full rounded-lg max-h-48" />;
+  }
+  if (url && (mediaType === "voice" || mediaType === "audio")) {
+    return (
+      <div className="space-y-1">
+        <audio src={url} controls className="h-8" />
+        {content && content !== "[voice]" && <p className="text-xs opacity-70">{content}</p>}
+      </div>
+    );
+  }
+  if (url && mediaType === "file") {
+    return (
+      <a href={url} target="_blank" rel="noopener" className="flex items-center gap-2 underline text-xs">
+        📎 {content || "下载文件"}
+      </a>
+    );
+  }
+  return <>{content || `[${m.msg_type}]`}</>;
 }
 
 export function BotDetailPage() {
@@ -110,7 +134,7 @@ export function BotDetailPage() {
                   <div className={`max-w-[75%] px-3 py-2 rounded-xl text-sm ${
                     isIn ? "bg-secondary rounded-bl-sm" : "bg-primary text-primary-foreground rounded-br-sm"
                   }`}>
-                    {getContent(m)}
+                    <MessageContent m={m} />
                     <div className={`text-[10px] mt-1 ${isIn ? "text-muted-foreground" : "opacity-50"}`}>
                       {new Date(m.created_at * 1000).toLocaleTimeString()}
                     </div>
