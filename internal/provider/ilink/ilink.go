@@ -338,6 +338,13 @@ func (p *Provider) sendVoice(ctx context.Context, recipient, contextToken string
 		return "", fmt.Errorf("upload voice: %w", err)
 	}
 
+	// Calculate play time in seconds from PCM data
+	// PCM is 16-bit (2 bytes per sample), mono
+	playTime := len(pcm) / (2 * wav.SampleRate)
+	if playTime <= 0 {
+		playTime = 1
+	}
+
 	// Build and send voice message
 	clientID := fmt.Sprintf("voice-%d", time.Now().UnixMilli())
 	msg := &ilink.SendMessageReq{
@@ -354,8 +361,10 @@ func (p *Provider) sendVoice(ctx context.Context, recipient, contextToken string
 						EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
 						AESKey:            base64.StdEncoding.EncodeToString([]byte(uploaded.AESKey)),
 					},
-					EncodeType: 4, // SILK with STX
-					SampleRate: wav.SampleRate,
+					EncodeType:    4, // SILK with STX
+					SampleRate:    wav.SampleRate,
+					BitsPerSample: 16,
+					PlayTime:      playTime,
 				},
 			}},
 		},
