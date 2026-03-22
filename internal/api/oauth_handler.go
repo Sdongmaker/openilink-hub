@@ -32,29 +32,57 @@ type oauthProvider struct {
 	Scopes       string
 }
 
+// oauthProviderDefs defines the static parts of each provider.
+var oauthProviderDefs = map[string]struct {
+	AuthURL, TokenURL, UserInfoURL, Scopes string
+}{
+	"github": {
+		AuthURL:     "https://github.com/login/oauth/authorize",
+		TokenURL:    "https://github.com/login/oauth/access_token",
+		UserInfoURL: "https://api.github.com/user",
+		Scopes:      "read:user user:email",
+	},
+	"linuxdo": {
+		AuthURL:     "https://connect.linux.do/oauth2/authorize",
+		TokenURL:    "https://connect.linux.do/oauth2/token",
+		UserInfoURL: "https://connect.linux.do/api/user",
+		Scopes:      "",
+	},
+}
+
+// oauthProviders returns enabled OAuth providers.
+// DB config takes precedence over env vars.
 func (s *Server) oauthProviders() map[string]*oauthProvider {
-	cfg := s.Config
+	dbConf, _ := s.DB.ListConfigByPrefix("oauth.")
 	providers := map[string]*oauthProvider{}
-	if cfg.GitHubClientID != "" {
-		providers["github"] = &oauthProvider{
-			Name:         "github",
-			AuthURL:      "https://github.com/login/oauth/authorize",
-			TokenURL:     "https://github.com/login/oauth/access_token",
-			UserInfoURL:  "https://api.github.com/user",
-			ClientID:     cfg.GitHubClientID,
-			ClientSecret: cfg.GitHubClientSecret,
-			Scopes:       "read:user user:email",
+
+	for name, def := range oauthProviderDefs {
+		clientID := dbConf["oauth."+name+".client_id"]
+		clientSecret := dbConf["oauth."+name+".client_secret"]
+
+		// Fallback to env config
+		if clientID == "" {
+			switch name {
+			case "github":
+				clientID = s.Config.GitHubClientID
+				clientSecret = s.Config.GitHubClientSecret
+			case "linuxdo":
+				clientID = s.Config.LinuxDoClientID
+				clientSecret = s.Config.LinuxDoClientSecret
+			}
 		}
-	}
-	if cfg.LinuxDoClientID != "" {
-		providers["linuxdo"] = &oauthProvider{
-			Name:         "linuxdo",
-			AuthURL:      "https://connect.linux.do/oauth2/authorize",
-			TokenURL:     "https://connect.linux.do/oauth2/token",
-			UserInfoURL:  "https://connect.linux.do/api/user",
-			ClientID:     cfg.LinuxDoClientID,
-			ClientSecret: cfg.LinuxDoClientSecret,
-			Scopes:       "",
+
+		if clientID == "" {
+			continue
+		}
+		providers[name] = &oauthProvider{
+			Name:         name,
+			AuthURL:      def.AuthURL,
+			TokenURL:     def.TokenURL,
+			UserInfoURL:  def.UserInfoURL,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Scopes:       def.Scopes,
 		}
 	}
 	return providers

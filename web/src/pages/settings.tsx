@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
 import { api } from "../lib/api";
-import { Link2, Unlink } from "lucide-react";
+import { Link2, Unlink, Save, Trash2 } from "lucide-react";
 
 const providerLabels: Record<string, string> = {
   github: "GitHub",
   linuxdo: "LinuxDo",
+};
+
+const providerCallbackHelp: Record<string, string> = {
+  github: "在 github.com/settings/developers → OAuth Apps 中创建应用",
+  linuxdo: "在 connect.linux.do 中创建应用",
 };
 
 export function SettingsPage() {
@@ -27,11 +33,9 @@ export function SettingsPage() {
 
   useEffect(() => { load(); }, []);
 
-  // Check for OAuth callback results in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("oauth_bound") || params.get("oauth_error")) {
-      // Clean URL
       window.history.replaceState({}, "", "/settings");
       load();
     }
@@ -53,8 +57,6 @@ export function SettingsPage() {
 
   if (!user) return null;
 
-  const linkedProviders = new Set(oauthAccounts.map((a) => a.provider));
-
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">设置</h2>
@@ -69,7 +71,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      {/* OAuth accounts */}
+      {/* OAuth account binding */}
       {oauthProviders.length > 0 && (
         <Card className="space-y-3">
           <h3 className="text-sm font-medium">第三方账号绑定</h3>
@@ -77,7 +79,6 @@ export function SettingsPage() {
             {oauthProviders.map((provider) => {
               const account = oauthAccounts.find((a) => a.provider === provider);
               const linked = !!account;
-
               return (
                 <div
                   key={provider}
@@ -91,29 +92,17 @@ export function SettingsPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">{providerLabels[provider] || provider}</p>
-                      {linked ? (
-                        <p className="text-xs text-[var(--muted-foreground)]">
-                          已绑定：{account.username}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-[var(--muted-foreground)]">未绑定</p>
-                      )}
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        {linked ? `已绑定：${account.username}` : "未绑定"}
+                      </p>
                     </div>
                   </div>
                   {linked ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleUnlink(provider)}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => handleUnlink(provider)}>
                       <Unlink className="w-3.5 h-3.5 mr-1" /> 解绑
                     </Button>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleBind(provider)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => handleBind(provider)}>
                       <Link2 className="w-3.5 h-3.5 mr-1" /> 绑定
                     </Button>
                   )}
@@ -123,6 +112,154 @@ export function SettingsPage() {
           </div>
         </Card>
       )}
+
+      {/* Admin: OAuth config */}
+      {user.role === "admin" && <OAuthConfigSection />}
+    </div>
+  );
+}
+
+function OAuthConfigSection() {
+  const [config, setConfig] = useState<Record<string, any> | null>(null);
+  const [error, setError] = useState("");
+
+  async function loadConfig() {
+    try {
+      const data = await api.getOAuthConfig();
+      setConfig(data);
+    } catch {
+      // Not admin or not available
+    }
+  }
+
+  useEffect(() => { loadConfig(); }, []);
+
+  if (!config) return null;
+
+  const callbackBase = window.location.origin + "/api/auth/oauth/";
+
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h3 className="text-sm font-medium">OAuth 配置</h3>
+        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+          管理员可在此配置第三方登录，无需重启服务。DB 配置优先于环境变量。
+        </p>
+      </div>
+      {error && <p className="text-xs text-[var(--destructive)]">{error}</p>}
+      {Object.keys(providerLabels).map((name) => (
+        <OAuthProviderForm
+          key={name}
+          name={name}
+          label={providerLabels[name]}
+          config={config[name]}
+          callbackURL={callbackBase + name + "/callback"}
+          help={providerCallbackHelp[name]}
+          onSaved={loadConfig}
+          onError={setError}
+        />
+      ))}
+    </Card>
+  );
+}
+
+function OAuthProviderForm({
+  name, label, config, callbackURL, help, onSaved, onError,
+}: {
+  name: string;
+  label: string;
+  config: any;
+  callbackURL: string;
+  help: string;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [clientId, setClientId] = useState(config?.client_id || "");
+  const [clientSecret, setClientSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setClientId(config?.client_id || "");
+    setClientSecret("");
+  }, [config]);
+
+  async function handleSave() {
+    if (!clientId.trim()) { onError("Client ID 不能为空"); return; }
+    setSaving(true);
+    onError("");
+    try {
+      await api.setOAuthConfig(name, {
+        client_id: clientId.trim(),
+        client_secret: clientSecret,
+      });
+      onSaved();
+    } catch (err: any) {
+      onError(err.message);
+    }
+    setSaving(false);
+  }
+
+  async function handleDelete() {
+    if (!confirm(`删除 ${label} 的 OAuth 配置？将回退到环境变量配置。`)) return;
+    onError("");
+    try {
+      await api.deleteOAuthConfig(name);
+      onSaved();
+    } catch (err: any) {
+      onError(err.message);
+    }
+  }
+
+  const source = config?.source;
+  const enabled = config?.enabled;
+
+  return (
+    <div className="space-y-2 p-3 rounded-lg border border-[var(--border)] bg-[var(--background)]">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-sm font-medium">{label}</span>
+          {enabled && (
+            <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded ${
+              source === "db"
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+            }`}>
+              {source === "db" ? "数据库" : "环境变量"}
+            </span>
+          )}
+        </div>
+        {source === "db" && (
+          <Button variant="ghost" size="sm" onClick={handleDelete}>
+            <Trash2 className="w-3.5 h-3.5 text-[var(--destructive)]" />
+          </Button>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Input
+          placeholder="Client ID"
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          className="h-8 text-xs font-mono"
+        />
+        <Input
+          type="password"
+          placeholder={enabled ? "Client Secret（留空保持不变）" : "Client Secret"}
+          value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)}
+          className="h-8 text-xs font-mono"
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] text-[var(--muted-foreground)] space-y-0.5">
+          <p>回调地址：<code className="select-all">{callbackURL}</code></p>
+          <p>{help}</p>
+        </div>
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          <Save className="w-3.5 h-3.5 mr-1" /> 保存
+        </Button>
+      </div>
     </div>
   );
 }

@@ -85,4 +85,10 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_bot ON messages(bot_id, id);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(bot_id, sender);
+
+CREATE TABLE IF NOT EXISTS system_config (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `

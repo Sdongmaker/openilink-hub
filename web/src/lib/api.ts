@@ -50,6 +50,13 @@ export const api = {
   // Messages
   messages: (bot_id: string, limit = 50) => request<any[]>(`/api/messages?bot_id=${bot_id}&limit=${limit}`),
 
+  // Admin: system config
+  getOAuthConfig: () => request<Record<string, any>>("/api/admin/config/oauth"),
+  setOAuthConfig: (provider: string, data: { client_id: string; client_secret: string }) =>
+    request(`/api/admin/config/oauth/${provider}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteOAuthConfig: (provider: string) =>
+    request(`/api/admin/config/oauth/${provider}`, { method: "DELETE" }),
+
   // Users (admin)
   listUsers: () => request<any[]>("/api/users"),
   createUser: (data: any) => request("/api/users", { method: "POST", body: JSON.stringify(data) }),
