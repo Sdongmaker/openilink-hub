@@ -198,23 +198,66 @@ type resData struct {
 }
 
 type webhookPayload struct {
-	Event     string                 `json:"event"`
-	ChannelID string                 `json:"channel_id"`
-	BotID     string                 `json:"bot_id"`
-	SeqID     int64                  `json:"seq_id"`
-	Sender    string                 `json:"sender"`
-	MsgType   string                 `json:"msg_type"`
-	Content   string                 `json:"content"`
-	Timestamp int64                  `json:"timestamp"`
-	Items     []provider.MessageItem `json:"items"`
+	Event     string        `json:"event"`
+	ChannelID string        `json:"channel_id"`
+	BotID     string        `json:"bot_id"`
+	SeqID     int64         `json:"seq_id"`
+	Sender    string        `json:"sender"`
+	MsgType   string        `json:"msg_type"`
+	Content   string        `json:"content"`
+	Timestamp int64         `json:"timestamp"`
+	Items     []webhookItem `json:"items"`
+}
+
+type webhookItem struct {
+	Type     string `json:"type"`               // "text", "image", "voice", "file", "video"
+	Text     string `json:"text,omitempty"`
+	FileName string `json:"file_name,omitempty"`
+	MediaURL string `json:"media_url,omitempty"` // download URL (MinIO or CDN proxy)
+	FileSize int64  `json:"file_size,omitempty"`
+	// Voice
+	PlayTime int `json:"play_time,omitempty"`
+	// Video
+	PlayLength  int `json:"play_length,omitempty"`
+	ThumbWidth  int `json:"thumb_width,omitempty"`
+	ThumbHeight int `json:"thumb_height,omitempty"`
+	// Quoted message
+	RefTitle string       `json:"ref_title,omitempty"`
+	RefItem  *webhookItem `json:"ref_item,omitempty"`
 }
 
 func buildPayload(d Delivery) webhookPayload {
+	items := make([]webhookItem, len(d.Message.Items))
+	for i, item := range d.Message.Items {
+		items[i] = convertWebhookItem(item)
+	}
 	return webhookPayload{
 		Event: "message", ChannelID: d.Channel.ID, BotID: d.BotDBID,
 		SeqID: d.SeqID, Sender: d.Message.Sender, MsgType: d.MsgType,
-		Content: d.Content, Timestamp: d.Message.Timestamp, Items: d.Message.Items,
+		Content: d.Content, Timestamp: d.Message.Timestamp, Items: items,
 	}
+}
+
+func convertWebhookItem(item provider.MessageItem) webhookItem {
+	wi := webhookItem{
+		Type:     item.Type,
+		Text:     item.Text,
+		FileName: item.FileName,
+	}
+	if item.Media != nil {
+		wi.MediaURL = item.Media.URL
+		wi.FileSize = item.Media.FileSize
+		wi.PlayTime = item.Media.PlayTime
+		wi.PlayLength = item.Media.PlayLength
+		wi.ThumbWidth = item.Media.ThumbWidth
+		wi.ThumbHeight = item.Media.ThumbHeight
+	}
+	if item.RefMsg != nil {
+		wi.RefTitle = item.RefMsg.Title
+		ref := convertWebhookItem(item.RefMsg.Item)
+		wi.RefItem = &ref
+	}
+	return wi
 }
 
 // --- HTTP helpers ---
