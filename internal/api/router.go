@@ -9,6 +9,7 @@ import (
 	"github.com/openilink/openilink-hub/internal/config"
 	"github.com/openilink/openilink-hub/internal/database"
 	"github.com/openilink/openilink-hub/internal/relay"
+	"github.com/openilink/openilink-hub/internal/storage"
 	"github.com/openilink/openilink-hub/internal/web"
 )
 
@@ -20,6 +21,7 @@ type Server struct {
 	Hub          *relay.Hub
 	Config       *config.Config
 	OAuthStates  *oauthStateStore
+	Store        *storage.Storage // optional
 }
 
 func cors(next http.Handler) http.Handler {
@@ -58,6 +60,9 @@ func (s *Server) Handler() http.Handler {
 
 	// --- Public info ---
 	mux.HandleFunc("GET /api/info", s.handleInfo)
+
+	// --- Media proxy (serves MinIO files through Hub) ---
+	mux.HandleFunc("GET /api/v1/media/", s.handleMediaProxy)
 
 	// --- Channel API (api_key auth) ---
 	mux.HandleFunc("GET /api/v1/channels/connect", s.handleWebSocket)

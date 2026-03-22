@@ -49,12 +49,9 @@ func New(cfg Config) (*Storage, error) {
 	}
 
 	publicURL := cfg.PublicURL
+	// If no public URL set, it must be set externally (e.g. Hub proxy)
 	if publicURL == "" {
-		scheme := "http"
-		if cfg.UseSSL {
-			scheme = "https"
-		}
-		publicURL = fmt.Sprintf("%s://%s/%s", scheme, cfg.Endpoint, cfg.Bucket)
+		publicURL = "/api/v1/media"
 	}
 
 	return &Storage{client: client, bucket: cfg.Bucket, publicURL: publicURL}, nil

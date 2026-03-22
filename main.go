@@ -59,19 +59,24 @@ func main() {
 	var store *storage.Storage
 	if cfg.StorageEndpoint != "" {
 		var err error
+		publicURL := cfg.StoragePublicURL
+		if publicURL == "" {
+			publicURL = cfg.RPOrigin + "/api/v1/media"
+		}
 		store, err = storage.New(storage.Config{
 			Endpoint:  cfg.StorageEndpoint,
 			AccessKey: cfg.StorageAccessKey,
 			SecretKey: cfg.StorageSecretKey,
 			Bucket:    cfg.StorageBucket,
 			UseSSL:    cfg.StorageSSL,
-			PublicURL: cfg.StoragePublicURL,
+			PublicURL: publicURL,
 		})
 		if err != nil {
 			slog.Error("storage init failed", "err", err)
 			os.Exit(1)
 		}
 		slog.Info("storage connected", "endpoint", cfg.StorageEndpoint, "bucket", cfg.StorageBucket)
+		srv.Store = store
 	}
 
 	hub := relay.NewHub(srv.SetupUpstreamHandler())
