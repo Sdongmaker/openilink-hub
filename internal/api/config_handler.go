@@ -175,7 +175,8 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	globalAI, _ := s.DB.ListConfigByPrefix("ai.")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{
-		"ai": globalAI["ai.api_key"] != "",
+		"ai":      globalAI["ai.api_key"] != "",
+		"storage": s.Config.StorageEndpoint != "",
 	})
 }
 

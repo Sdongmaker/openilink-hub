@@ -108,9 +108,37 @@ export function SettingsPage() {
         </Card>
       )}
 
+      {user.role === "admin" && <SystemStatusSection />}
       {user.role === "admin" && <AIConfigSection />}
       {user.role === "admin" && <OAuthConfigSection />}
     </div>
+  );
+}
+
+function SystemStatusSection() {
+  const [info, setInfo] = useState<any>(null);
+  useEffect(() => { api.info().then(setInfo).catch(() => {}); }, []);
+  if (!info) return null;
+
+  const items = [
+    { label: "AI 服务", enabled: info.ai },
+    { label: "对象存储 (MinIO)", enabled: info.storage },
+  ];
+
+  return (
+    <Card className="space-y-3">
+      <h3 className="text-sm font-medium">系统状态</h3>
+      <div className="space-y-1.5">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center justify-between text-sm">
+            <span>{item.label}</span>
+            <span className={`text-xs px-2 py-0.5 rounded ${item.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+              {item.enabled ? "已启用" : "未配置"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
