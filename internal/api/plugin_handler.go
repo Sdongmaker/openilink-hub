@@ -1,6 +1,7 @@
 package api
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,14 @@ import (
 	"github.com/openilink/openilink-hub/internal/auth"
 	"github.com/openilink/openilink-hub/internal/database"
 )
+
+//go:embed plugin_skill.md
+var pluginSkillMD string
+
+func handlePluginSkill(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Write([]byte(pluginSkillMD))
+}
 
 // POST /api/webhook-plugins/submit
 // Body: {"github_url": "https://github.com/user/repo/blob/main/plugin.js"}

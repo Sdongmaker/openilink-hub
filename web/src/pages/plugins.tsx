@@ -5,7 +5,7 @@ import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { api } from "../lib/api";
-import { Github, Download, Check, X, Trash2, Send, ArrowLeft, ExternalLink } from "lucide-react";
+import { Github, Download, Check, X, Trash2, Send, ArrowLeft, ExternalLink, BookOpen } from "lucide-react";
 
 const statusMap: Record<string, { label: string; variant: "default" | "outline" | "destructive" }> = {
   approved: { label: "已通过", variant: "default" },
@@ -40,12 +40,17 @@ export function PluginsPage() {
           </Link>
           <span className="font-semibold text-sm">Webhook 插件市场</span>
         </div>
-        {!isLoggedIn && (
-          <Link to="/login"><Button size="sm" className="text-xs">登录</Button></Link>
-        )}
-        {isLoggedIn && (
-          <span className="text-xs text-muted-foreground">{user.username}</span>
-        )}
+        <div className="flex items-center gap-2">
+          <a href="/api/webhook-plugins/skill.md" target="_blank" rel="noopener">
+            <Button variant="ghost" size="sm" className="text-xs"><BookOpen className="w-3.5 h-3.5 mr-1" /> 开发文档</Button>
+          </a>
+          {!isLoggedIn && (
+            <Link to="/login"><Button size="sm" className="text-xs">登录</Button></Link>
+          )}
+          {isLoggedIn && (
+            <span className="text-xs text-muted-foreground">{user.username}</span>
+          )}
+        </div>
       </header>
 
       <main className="flex-1 p-6 max-w-4xl mx-auto w-full space-y-4">
