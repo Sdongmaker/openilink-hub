@@ -1102,7 +1102,7 @@ function CopyRow({ label, value, copied, onCopy }: { label: string; value: strin
 
 function BotSettingsTab({ bot, onUpdate }: { bot: any; onUpdate: () => void }) {
   const [reminderEnabled, setReminderEnabled] = useState(bot.reminder_hours > 0);
-  const [reminderHours, setReminderHours] = useState(bot.reminder_hours || 1);
+  const [reminderHours, setReminderHours] = useState(bot.reminder_hours || 23);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -1119,7 +1119,7 @@ function BotSettingsTab({ bot, onUpdate }: { bot: any; onUpdate: () => void }) {
       <div className="p-4 rounded-lg border space-y-3">
         <h3 className="text-sm font-medium">会话保活提醒</h3>
         <p className="text-xs text-muted-foreground">
-          微信会话 24 小时未活动将过期。开启后，Bot 在设定时间内无消息会自动发送一条提醒。
+          微信会话 24 小时未活动将过期。开启后，当 Bot 在设定时间内没有收发任何消息时，系统会自动通过 Bot 发送一条提醒消息给你的微信，同时起到保活会话的作用。
         </p>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -1133,21 +1133,23 @@ function BotSettingsTab({ bot, onUpdate }: { bot: any; onUpdate: () => void }) {
           </label>
         </div>
         {reminderEnabled && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">无消息超过</span>
-            <input
-              type="number"
-              value={reminderHours}
-              onChange={(e) => setReminderHours(Math.max(1, Math.min(12, parseInt(e.target.value) || 1)))}
-              className="w-16 h-7 rounded border px-2 text-xs text-center"
-              min={1}
-              max={12}
-            />
-            <span className="text-xs text-muted-foreground">小时后提醒</span>
-            <span className="text-[10px] text-muted-foreground ml-2">
-              (距过期还有约 {Math.max(0, 24 - reminderHours)} 小时)
-            </span>
-          </div>
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">无消息超过</span>
+              <input
+                type="number"
+                value={reminderHours}
+                onChange={(e) => setReminderHours(Math.max(1, Math.min(23, parseInt(e.target.value) || 23)))}
+                className="w-16 h-7 rounded border px-2 text-xs text-center"
+                min={1}
+                max={23}
+              />
+              <span className="text-xs text-muted-foreground">小时后提醒</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              设为 {reminderHours} 小时：Bot 静默 {reminderHours} 小时后发送提醒，距 24 小时过期还剩约 {Math.max(1, 24 - reminderHours)} 小时。建议设为 23 小时（提前 1 小时提醒）。
+            </p>
+          </>
         )}
         <div className="flex justify-end">
           <Button size="sm" onClick={handleSave} disabled={saving}>
