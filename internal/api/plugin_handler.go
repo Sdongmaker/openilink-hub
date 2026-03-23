@@ -99,8 +99,8 @@ func (s *Server) handleSubmitPlugin(w http.ResponseWriter, r *http.Request) {
 	configSchema, _ := json.Marshal(meta.Config)
 
 	// Check for existing pending version → update it
-	existing, _ := s.DB.FindPendingVersion(plugin.ID)
-	if existing != nil {
+	existing, err := s.DB.FindPendingVersion(plugin.ID)
+	if err == nil && existing.ID != "" {
 		existing.Version = meta.Version
 		existing.Changelog = meta.Changelog
 		existing.Script = script
@@ -127,10 +127,10 @@ func (s *Server) handleSubmitPlugin(w http.ResponseWriter, r *http.Request) {
 		MatchTypes: meta.Match, ConnectDomains: meta.Connect, GrantPerms: strings.Join(meta.Grant, ","),
 	})
 	if err != nil {
-		jsonError(w, "create version failed", http.StatusInternalServerError)
+		slog.Error("create version failed", "plugin", plugin.ID, "err", err)
+		jsonError(w, "create version failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"plugin_id": plugin.ID, "version_id": ver.ID, "status": "pending"})
 }
