@@ -153,6 +153,25 @@ func (db *DB) ListPlugins(status string) ([]Plugin, error) {
 	return plugins, rows.Err()
 }
 
+// ListPluginsByUser returns all plugins submitted by a user.
+func (db *DB) ListPluginsByUser(userID string) ([]Plugin, error) {
+	rows, err := db.Query("SELECT "+pluginSelectCols+pluginFromJoin+
+		" WHERE p.submitted_by = $1 ORDER BY p.created_at DESC", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var plugins []Plugin
+	for rows.Next() {
+		p, err := scanPlugin(rows)
+		if err != nil {
+			return nil, err
+		}
+		plugins = append(plugins, *p)
+	}
+	return plugins, rows.Err()
+}
+
 func (db *DB) UpdatePluginStatus(id, status, reviewedBy, reason string) error {
 	_, err := db.Exec("UPDATE plugins SET status = $1, reviewed_by = $2, reject_reason = $3, updated_at = NOW() WHERE id = $4",
 		status, reviewedBy, reason, id)

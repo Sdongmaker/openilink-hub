@@ -3,7 +3,8 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
 import { api } from "../lib/api";
-import { Link2, Unlink, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Link2, Unlink, KeyRound, Plus, Trash2, Puzzle } from "lucide-react";
+import { Badge } from "../components/ui/badge";
 
 const providerLabels: Record<string, string> = { github: "GitHub", linuxdo: "LinuxDo" };
 
@@ -45,6 +46,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      <MyPluginsSection />
       <ChangePasswordSection />
       <PasskeySection />
 
@@ -84,6 +86,61 @@ export function SettingsPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+// ==================== My Plugins ====================
+
+function MyPluginsSection() {
+  const [plugins, setPlugins] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.myPlugins().then((p) => setPlugins(p || [])).catch(() => {});
+  }, []);
+
+  const statusMap: Record<string, { label: string; variant: "default" | "outline" | "destructive" }> = {
+    approved: { label: "已通过", variant: "default" },
+    pending: { label: "待审核", variant: "outline" },
+    rejected: { label: "已拒绝", variant: "destructive" },
+  };
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">我的插件</h3>
+        <a href="/dashboard/webhook-plugins" className="text-[10px] text-primary hover:underline">
+          去插件市场 →
+        </a>
+      </div>
+      {plugins.length === 0 ? (
+        <p className="text-xs text-muted-foreground">你还没有提交任何插件</p>
+      ) : (
+        <div className="space-y-1">
+          {plugins.map((p) => {
+            const s = statusMap[p.status] || statusMap.pending;
+            return (
+              <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border bg-background">
+                <div className="flex items-center gap-2 min-w-0">
+                  {p.icon && <span>{p.icon}</span>}
+                  <Puzzle className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-medium">{p.name}</span>
+                      <span className="text-[10px] text-muted-foreground">v{p.version}</span>
+                      <Badge variant={s.variant} className="text-[10px]">{s.label}</Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate">{p.description}</p>
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                  {p.install_count} 安装
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
   );
 }
 

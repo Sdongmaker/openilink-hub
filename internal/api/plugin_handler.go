@@ -122,6 +122,21 @@ func (s *Server) handleSubmitPlugin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(plugin)
 }
 
+// GET /api/me/plugins — list current user's plugins
+func (s *Server) handleMyPlugins(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserIDFromContext(r.Context())
+	plugins, err := s.DB.ListPluginsByUser(userID)
+	if err != nil {
+		jsonError(w, "list failed", http.StatusInternalServerError)
+		return
+	}
+	for i := range plugins {
+		plugins[i].Script = "" // don't send full script in list
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(plugins)
+}
+
 // optionalUser tries to extract the current user from session cookie (for public endpoints).
 func (s *Server) optionalUser(r *http.Request) *database.User {
 	cookie, err := r.Cookie("session")

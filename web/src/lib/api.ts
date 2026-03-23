@@ -24,6 +24,9 @@ export const api = {
   me: () => request<{ id: string; username: string; display_name: string; role: string }>("/api/me"),
   info: () => request<{ ai: boolean }>("/api/info"),
 
+  // My plugins
+  myPlugins: () => request<any[]>("/api/me/plugins"),
+
   // Passkeys
   listPasskeys: () => request<any[]>("/api/me/passkeys"),
   passkeyBindBegin: () => request<any>("/api/me/passkeys/register/begin", { method: "POST" }),

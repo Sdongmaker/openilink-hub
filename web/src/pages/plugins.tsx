@@ -213,9 +213,9 @@ function PluginCard({ plugin, onRefresh, isAdmin, isLoggedIn, mode }: {
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{plugin.description}</p>
           <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
-            <span>by {plugin.author || "anonymous"}</span>
-            {plugin.submitter_name && <span>提交：{plugin.submitter_name}</span>}
-            {plugin.reviewer_name && <span>审核：{plugin.reviewer_name}</span>}
+            <span>作者: {plugin.author || "anonymous"}</span>
+            {plugin.submitter_name && <span>拥有者: {plugin.submitter_name}</span>}
+            {plugin.reviewer_name && <span>审核: {plugin.reviewer_name}</span>}
             <span>{plugin.install_count} 次安装</span>
             {(plugin.github_url || plugin.homepage) && (
               <a href={plugin.homepage || plugin.github_url} target="_blank" rel="noopener" className="flex items-center gap-0.5 hover:text-primary">
@@ -351,8 +351,8 @@ function ReviewCard({ plugin, onRefresh }: { plugin: any; onRefresh: () => void 
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{plugin.description}</p>
           <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
-            <span>by {plugin.author || "anonymous"}</span>
-            <span>提交者: {plugin.submitter_name}</span>
+            <span>作者: {plugin.author || "anonymous"}</span>
+            <span>拥有者: {plugin.submitter_name}</span>
             {plugin.license && <span>{plugin.license}</span>}
             {plugin.github_url && (
               <a href={plugin.github_url} target="_blank" rel="noopener" className="text-primary hover:underline flex items-center gap-0.5">

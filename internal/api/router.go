@@ -86,6 +86,9 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("PUT /api/me/profile", s.handleUpdateProfile)
 	protected.HandleFunc("PUT /api/me/password", s.handleChangePassword)
 
+	// My plugins
+	protected.HandleFunc("GET /api/me/plugins", s.handleMyPlugins)
+
 	// Passkey binding (authenticated)
 	protected.HandleFunc("GET /api/me/passkeys", s.handleListPasskeys)
 	protected.HandleFunc("POST /api/me/passkeys/register/begin", s.handlePasskeyBindBegin)
