@@ -1,13 +1,18 @@
 {
   "name": "openilink-hub-web",
-  "private": true,
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "vp dev",
+    "build": "tsc && vp build",
     "type-check": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vp preview",
+    "check": "vp check",
+    "check:fix": "vp check --fix",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "test": "vp test"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
@@ -31,6 +36,14 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
-    "vite": "^8.0.1"
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plus": "latest"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "pnpm": {
+    "overrides": {
+      "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+      "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    }
   }
 }

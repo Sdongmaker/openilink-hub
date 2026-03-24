@@ -4,13 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
 import { HexagonBackground } from "../components/ui/hexagon-background";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import {
   Field,
   FieldDescription,
@@ -102,15 +96,15 @@ export function LoginPage() {
       options.publicKey.challenge = base64urlToBuffer(options.publicKey.challenge);
 
       if (options.publicKey.allowCredentials) {
-        options.publicKey.allowCredentials = options.publicKey.allowCredentials.map((credential: any) => ({
-          ...credential,
-          id: base64urlToBuffer(credential.id),
-        }));
+        options.publicKey.allowCredentials = options.publicKey.allowCredentials.map(
+          (credential: any) => ({
+            ...credential,
+            id: base64urlToBuffer(credential.id),
+          }),
+        );
       }
 
-      const credential = (await navigator.credentials.get(
-        options,
-      )) as PublicKeyCredential;
+      const credential = (await navigator.credentials.get(options)) as PublicKeyCredential;
 
       if (!credential) {
         throw new Error("cancelled");
@@ -178,15 +172,15 @@ export function LoginPage() {
       options.publicKey.user.id = base64urlToBuffer(options.publicKey.user.id);
 
       if (options.publicKey.excludeCredentials) {
-        options.publicKey.excludeCredentials = options.publicKey.excludeCredentials.map((credential: any) => ({
-          ...credential,
-          id: base64urlToBuffer(credential.id),
-        }));
+        options.publicKey.excludeCredentials = options.publicKey.excludeCredentials.map(
+          (credential: any) => ({
+            ...credential,
+            id: base64urlToBuffer(credential.id),
+          }),
+        );
       }
 
-      const credential = (await navigator.credentials.create(
-        options,
-      )) as PublicKeyCredential;
+      const credential = (await navigator.credentials.create(options)) as PublicKeyCredential;
 
       if (!credential) {
         throw new Error("cancelled");
@@ -237,8 +231,7 @@ export function LoginPage() {
     setError("");
   }
 
-  const supportsPasskey =
-    typeof window !== "undefined" && "PublicKeyCredential" in window;
+  const supportsPasskey = typeof window !== "undefined" && "PublicKeyCredential" in window;
 
   return (
     <div className="relative isolate flex min-h-screen items-center justify-center overflow-x-hidden bg-background px-6 py-12 sm:px-8 sm:py-16">
@@ -248,7 +241,9 @@ export function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         <div className="flex flex-col gap-10">
           <div className="space-y-4 text-center">
-            <p className="text-sm font-medium tracking-[0.18em] text-muted-foreground uppercase">OpenILink Hub</p>
+            <p className="text-sm font-medium tracking-[0.18em] text-muted-foreground uppercase">
+              OpenILink Hub
+            </p>
             <div className="space-y-3">
               <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                 {mode === "login" ? "欢迎回来" : "创建你的账号"}
@@ -264,9 +259,7 @@ export function LoginPage() {
           <Card className="rounded-[1.75rem] border-white/8 bg-card/82 backdrop-blur-sm">
             <CardHeader className="px-6 pt-8 pb-4 text-center sm:px-8">
               <CardTitle className="text-2xl">OpenILink Hub</CardTitle>
-              <CardDescription>
-                {mode === "login" ? "登录你的账号" : "创建新账号"}
-              </CardDescription>
+              <CardDescription>{mode === "login" ? "登录你的账号" : "创建新账号"}</CardDescription>
             </CardHeader>
             <CardContent className="px-6 pb-8 sm:px-8">
               <form onSubmit={handleSubmit}>
@@ -311,9 +304,7 @@ export function LoginPage() {
                     <div className="flex items-center">
                       <FieldLabel htmlFor="password">密码</FieldLabel>
                       {mode === "register" && (
-                        <span className="ml-auto text-sm text-muted-foreground">
-                          至少 8 位
-                        </span>
+                        <span className="ml-auto text-sm text-muted-foreground">至少 8 位</span>
                       )}
                     </div>
                     <Input
@@ -340,17 +331,11 @@ export function LoginPage() {
                           type="button"
                           variant="outline"
                           className="h-10 w-full text-sm"
-                          onClick={
-                            mode === "login"
-                              ? handlePasskeyLogin
-                              : handlePasskeyRegister
-                          }
+                          onClick={mode === "login" ? handlePasskeyLogin : handlePasskeyRegister}
                           disabled={loading || (mode === "register" && !username.trim())}
                         >
                           <KeyRound className="mr-2 h-4 w-4" />
-                          {mode === "login"
-                            ? "使用 Passkey 登录"
-                            : "使用 Passkey 注册（无需密码）"}
+                          {mode === "login" ? "使用 Passkey 登录" : "使用 Passkey 注册（无需密码）"}
                         </Button>
                         {mode === "register" && (
                           <FieldDescription className="text-center">
@@ -365,8 +350,8 @@ export function LoginPage() {
                     <Button type="submit" className="w-full" disabled={loading}>
                       {loading ? "..." : mode === "login" ? "登录" : "注册"}
                     </Button>
-                      <FieldDescription className="text-center">
-                        {mode === "login" ? "没有账号？" : "已有账号？"}{" "}
+                    <FieldDescription className="text-center">
+                      {mode === "login" ? "没有账号？" : "已有账号？"}{" "}
                       <button
                         type="button"
                         className="font-medium text-foreground underline underline-offset-4"
@@ -375,7 +360,7 @@ export function LoginPage() {
                         {mode === "login" ? "注册" : "登录"}
                       </button>
                     </FieldDescription>
-                    </Field>
+                  </Field>
                 </FieldGroup>
               </form>
             </CardContent>

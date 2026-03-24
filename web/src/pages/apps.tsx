@@ -55,7 +55,10 @@ function MarketplaceTab() {
   const [installApp, setInstallApp] = useState<any>(null);
 
   useEffect(() => {
-    api.listApps({ listed: true }).then((list) => setApps(list || [])).catch(() => {});
+    api
+      .listApps({ listed: true })
+      .then((list) => setApps(list || []))
+      .catch(() => {});
   }, []);
 
   return (
@@ -69,7 +72,11 @@ function MarketplaceTab() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 {app.icon ? (
-                  <img src={app.icon} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                  <img
+                    src={app.icon}
+                    alt=""
+                    className="w-10 h-10 rounded-lg object-cover shrink-0"
+                  />
                 ) : (
                   <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
                     <Blocks className="w-5 h-5 text-muted-foreground" />
@@ -78,7 +85,9 @@ function MarketplaceTab() {
                 <div className="min-w-0">
                   <p className="font-medium text-sm">{app.name}</p>
                   {app.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{app.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      {app.description}
+                    </p>
                   )}
                 </div>
               </div>
@@ -98,7 +107,12 @@ function MarketplaceTab() {
             {app.scopes?.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {app.scopes.map((s: string) => (
-                  <span key={s} className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{s}</span>
+                  <span
+                    key={s}
+                    className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded"
+                  >
+                    {s}
+                  </span>
                 ))}
               </div>
             )}
@@ -106,9 +120,7 @@ function MarketplaceTab() {
         ))}
       </div>
 
-      {installApp && (
-        <InstallModal app={installApp} onClose={() => setInstallApp(null)} />
-      )}
+      {installApp && <InstallModal app={installApp} onClose={() => setInstallApp(null)} />}
     </div>
   );
 }
@@ -124,21 +136,31 @@ function InstallModal({ app, onClose }: { app: any; onClose: () => void }) {
   const [success, setSuccess] = useState<{ handle: string; command?: string } | null>(null);
 
   useEffect(() => {
-    api.listBots().then((list) => {
-      const items = list || [];
-      setBots(items);
-      if (items.length > 0) setBotId(items[0].id);
-    }).catch(() => {});
+    api
+      .listBots()
+      .then((list) => {
+        const items = list || [];
+        setBots(items);
+        if (items.length > 0) setBotId(items[0].id);
+      })
+      .catch(() => {});
   }, []);
 
   async function handleInstall() {
-    if (!botId) { setError("请选择一个 Bot"); return; }
+    if (!botId) {
+      setError("请选择一个 Bot");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       await api.installApp(app.id, { bot_id: botId, handle: handle.trim() || undefined });
       const firstCmd = app.commands?.[0];
-      const cmdName = firstCmd ? (typeof firstCmd === "string" ? firstCmd : firstCmd.name) : undefined;
+      const cmdName = firstCmd
+        ? typeof firstCmd === "string"
+          ? firstCmd
+          : firstCmd.name
+        : undefined;
       setSuccess({ handle: handle.trim(), command: cmdName });
     } catch (err: any) {
       setError(err.message);
@@ -147,20 +169,36 @@ function InstallModal({ app, onClose }: { app: any; onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-background border rounded-xl p-5 max-w-md w-full mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-background border rounded-xl p-5 max-w-md w-full mx-4 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         {success ? (
           <>
             <p className="text-sm font-medium">安装成功！</p>
             <p className="text-xs text-muted-foreground">
-              {success.handle && <>发送 <code className="bg-secondary px-1 py-0.5 rounded">@{success.handle}</code></>}
+              {success.handle && (
+                <>
+                  发送 <code className="bg-secondary px-1 py-0.5 rounded">@{success.handle}</code>
+                </>
+              )}
               {success.handle && success.command && " 或 "}
-              {success.command && <>发送 <code className="bg-secondary px-1 py-0.5 rounded">{success.command}</code></>}
+              {success.command && (
+                <>
+                  发送 <code className="bg-secondary px-1 py-0.5 rounded">{success.command}</code>
+                </>
+              )}
               {!success.handle && !success.command && "App 已安装"}
               {(success.handle || success.command) && " 测试"}
             </p>
             <div className="flex justify-end">
-              <Button size="sm" onClick={onClose}>确认</Button>
+              <Button size="sm" onClick={onClose}>
+                确认
+              </Button>
             </div>
           </>
         ) : (
@@ -195,7 +233,9 @@ function InstallModal({ app, onClose }: { app: any; onClose: () => void }) {
               >
                 {bots.length === 0 && <option value="">无可用 Bot</option>}
                 {bots.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name || b.id}</option>
+                  <option key={b.id} value={b.id}>
+                    {b.name || b.id}
+                  </option>
                 ))}
               </select>
             </div>
@@ -213,8 +253,12 @@ function InstallModal({ app, onClose }: { app: any; onClose: () => void }) {
             {error && <p className="text-xs text-destructive">{error}</p>}
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
-              <Button size="sm" onClick={handleInstall} disabled={saving}>{saving ? "..." : "安装"}</Button>
+              <Button variant="outline" size="sm" onClick={onClose}>
+                取消
+              </Button>
+              <Button size="sm" onClick={handleInstall} disabled={saving}>
+                {saving ? "..." : "安装"}
+              </Button>
             </div>
           </>
         )}
@@ -240,7 +284,9 @@ function MyAppsTab() {
     } catch {}
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   function handleNameChange(name: string) {
     setForm((f) => ({ ...f, name, slug: slugify(name) }));
@@ -249,8 +295,14 @@ function MyAppsTab() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!form.name.trim()) { setError("名称不能为空"); return; }
-    if (!form.slug.trim()) { setError("Slug 不能为空"); return; }
+    if (!form.name.trim()) {
+      setError("名称不能为空");
+      return;
+    }
+    if (!form.slug.trim()) {
+      setError("Slug 不能为空");
+      return;
+    }
     setSaving(true);
     try {
       await api.createApp(form);
@@ -277,7 +329,13 @@ function MyAppsTab() {
         <Card className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium">创建新 App</h3>
-            <button onClick={() => { setCreating(false); setError(""); }} className="cursor-pointer">
+            <button
+              onClick={() => {
+                setCreating(false);
+                setError("");
+              }}
+              className="cursor-pointer"
+            >
               <X className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
@@ -307,10 +365,10 @@ function MyAppsTab() {
               className="h-8 text-xs"
             />
             <div className="flex items-center justify-between">
-              <div>
-                {error && <span className="text-xs text-destructive">{error}</span>}
-              </div>
-              <Button type="submit" size="sm" disabled={saving}>{saving ? "..." : "创建"}</Button>
+              <div>{error && <span className="text-xs text-destructive">{error}</span>}</div>
+              <Button type="submit" size="sm" disabled={saving}>
+                {saving ? "..." : "创建"}
+              </Button>
             </div>
           </form>
         </Card>
@@ -334,7 +392,9 @@ function MyAppsTab() {
               <p className="font-medium text-sm">{app.name}</p>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">{app.slug}</p>
               {app.description && (
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{app.description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                  {app.description}
+                </p>
               )}
             </div>
           </div>
@@ -350,7 +410,9 @@ function MyAppsTab() {
       ))}
 
       {apps.length === 0 && !creating && (
-        <p className="text-center text-sm text-muted-foreground py-8">点击上方按钮创建你的第一个 App</p>
+        <p className="text-center text-sm text-muted-foreground py-8">
+          点击上方按钮创建你的第一个 App
+        </p>
       )}
     </div>
   );

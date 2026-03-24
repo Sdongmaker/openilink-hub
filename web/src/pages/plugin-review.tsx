@@ -34,25 +34,42 @@ export function ReviewCard({ plugin, onRefresh }: { plugin: any; onRefresh: () =
 
   const risks: { level: "ok" | "warn" | "danger"; text: string }[] = [];
   if (isGrantNone) risks.push({ level: "ok", text: "声明 @grant none — 无副作用" });
-  else if (grants.length === 0) risks.push({ level: "warn", text: "未声明 @grant — 默认全部 API 可用" });
+  else if (grants.length === 0)
+    risks.push({ level: "warn", text: "未声明 @grant — 默认全部 API 可用" });
   if (hasReply) risks.push({ level: "warn", text: "使用 reply() — 可向用户发送消息" });
   if (hasSkip) risks.push({ level: "ok", text: "使用 skip() — 可跳过 webhook 推送" });
-  if (wildcardConnect) risks.push({ level: "danger", text: "@connect * — 可将请求重定向到任意域名" });
-  else if (connectDomains) risks.push({ level: "ok", text: `@connect 限定域名: ${connectDomains}` });
+  if (wildcardConnect)
+    risks.push({ level: "danger", text: "@connect * — 可将请求重定向到任意域名" });
+  else if (connectDomains)
+    risks.push({ level: "ok", text: `@connect 限定域名: ${connectDomains}` });
   if (wildcardMatch) risks.push({ level: "ok", text: "@match * — 所有消息类型触发" });
   else risks.push({ level: "ok", text: `@match 限定类型: ${matchTypes}` });
 
   // script is included in the pending version response
   const scriptText = plugin.script || "";
-  if (scriptText.includes("while(true)") || scriptText.includes("for(;;)")) risks.push({ level: "danger", text: "检测到疑似死循环" });
-  if (scriptText.includes("__proto__") || scriptText.includes("prototype")) risks.push({ level: "warn", text: "检测到原型链操作" });
-  if ((scriptText.match(/reply\(/g) || []).length > 3) risks.push({ level: "warn", text: `多处 reply() 调用 (${(scriptText.match(/reply\(/g) || []).length} 处)` });
+  if (scriptText.includes("while(true)") || scriptText.includes("for(;;)"))
+    risks.push({ level: "danger", text: "检测到疑似死循环" });
+  if (scriptText.includes("__proto__") || scriptText.includes("prototype"))
+    risks.push({ level: "warn", text: "检测到原型链操作" });
+  if ((scriptText.match(/reply\(/g) || []).length > 3)
+    risks.push({
+      level: "warn",
+      text: `多处 reply() 调用 (${(scriptText.match(/reply\(/g) || []).length} 处)`,
+    });
 
   const riskColors = { ok: "text-primary", warn: "text-yellow-500", danger: "text-destructive" };
   const riskIcons = { ok: "✓", warn: "⚠", danger: "✕" };
-  const overallRisk = risks.some(r => r.level === "danger") ? "danger" : risks.some(r => r.level === "warn") ? "warn" : "ok";
+  const overallRisk = risks.some((r) => r.level === "danger")
+    ? "danger"
+    : risks.some((r) => r.level === "warn")
+      ? "warn"
+      : "ok";
   const overallLabels = { ok: "低风险", warn: "需注意", danger: "高风险" };
-  const overallColors = { ok: "border-primary/30 bg-primary/5", warn: "border-yellow-500/30 bg-yellow-500/5", danger: "border-destructive/30 bg-destructive/5" };
+  const overallColors = {
+    ok: "border-primary/30 bg-primary/5",
+    warn: "border-yellow-500/30 bg-yellow-500/5",
+    danger: "border-destructive/30 bg-destructive/5",
+  };
 
   // plugin metadata comes from joined fields: name, icon, description, author, submitter_name
   const name = plugin.name || "未知插件";
@@ -75,11 +92,18 @@ export function ReviewCard({ plugin, onRefresh }: { plugin: any; onRefresh: () =
             <span>作者: {author || "anonymous"}</span>
             {plugin.submitter_name && <span>拥有者: {plugin.submitter_name}</span>}
             {plugin.github_url && (
-              <a href={plugin.github_url} target="_blank" rel="noopener" className="text-primary hover:underline flex items-center gap-0.5">
+              <a
+                href={plugin.github_url}
+                target="_blank"
+                rel="noopener"
+                className="text-primary hover:underline flex items-center gap-0.5"
+              >
                 <Github className="w-3 h-3" /> GitHub
               </a>
             )}
-            {plugin.commit_hash && <span className="font-mono">{plugin.commit_hash.slice(0, 7)}</span>}
+            {plugin.commit_hash && (
+              <span className="font-mono">{plugin.commit_hash.slice(0, 7)}</span>
+            )}
           </div>
         </div>
         <div className={`px-2 py-1 rounded text-xs font-medium ${riskColors[overallRisk]}`}>
@@ -90,7 +114,9 @@ export function ReviewCard({ plugin, onRefresh }: { plugin: any; onRefresh: () =
 
       {/* Security analysis */}
       <div className="rounded-lg border bg-card p-3 space-y-1.5">
-        <p className="text-xs font-medium flex items-center gap-1"><Shield className="w-3.5 h-3.5" /> 安全分析</p>
+        <p className="text-xs font-medium flex items-center gap-1">
+          <Shield className="w-3.5 h-3.5" /> 安全分析
+        </p>
         {risks.map((r, i) => (
           <div key={i} className={`text-[11px] flex items-start gap-1.5 ${riskColors[r.level]}`}>
             <span className="shrink-0">{riskIcons[r.level]}</span>
@@ -133,7 +159,12 @@ export function ReviewCard({ plugin, onRefresh }: { plugin: any; onRefresh: () =
             <Button size="sm" onClick={handleApprove} className="flex-1">
               <Check className="w-3.5 h-3.5 mr-1" /> 通过审核
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowReject(true)} className="flex-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowReject(true)}
+              className="flex-1"
+            >
               <X className="w-3.5 h-3.5 mr-1" /> 拒绝
             </Button>
             <Button size="sm" variant="ghost" onClick={handleDelete}>
@@ -142,13 +173,31 @@ export function ReviewCard({ plugin, onRefresh }: { plugin: any; onRefresh: () =
           </>
         ) : (
           <div className="flex-1 space-y-2">
-            <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="请输入拒绝原因..." className="h-8 text-xs" autoFocus />
+            <Input
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="请输入拒绝原因..."
+              className="h-8 text-xs"
+              autoFocus
+            />
             <div className="flex gap-2">
-              <Button size="sm" variant="destructive" onClick={handleReject} disabled={!rejectReason.trim()} className="flex-1">
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleReject}
+                disabled={!rejectReason.trim()}
+                className="flex-1"
+              >
                 确认拒绝
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setShowReject(false); setRejectReason(""); }}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setShowReject(false);
+                  setRejectReason("");
+                }}
+              >
                 取消
               </Button>
             </div>

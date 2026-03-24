@@ -41,22 +41,24 @@ export function PluginDebugPage() {
 
   // Load plugin list for picker
   useEffect(() => {
-    Promise.all([
-      api.listPlugins().catch(() => []),
-      api.myPlugins().catch(() => []),
-    ]).then(([pub, mine]) => {
-      setPlugins(pub || []);
-      setMyPlugins(mine || []);
-    });
+    Promise.all([api.listPlugins().catch(() => []), api.myPlugins().catch(() => [])]).then(
+      ([pub, mine]) => {
+        setPlugins(pub || []);
+        setMyPlugins(mine || []);
+      },
+    );
   }, []);
 
   // Load plugin from URL param ?plugin=id
   useEffect(() => {
     const pluginId = searchParams.get("plugin");
     if (pluginId) {
-      api.getPlugin(pluginId).then((p) => {
-        if (p.script) setScript(p.script);
-      }).catch(() => {});
+      api
+        .getPlugin(pluginId)
+        .then((p) => {
+          if (p.script) setScript(p.script);
+        })
+        .catch(() => {});
     }
   }, [searchParams]);
 
@@ -68,7 +70,11 @@ export function PluginDebugPage() {
 
     try {
       // Step 1: Execute onRequest on backend (sandbox)
-      const step1 = await api.debugRequest({ script, webhook_url: webhookUrl, mock_message: mockMessage });
+      const step1 = await api.debugRequest({
+        script,
+        webhook_url: webhookUrl,
+        mock_message: mockMessage,
+      });
       allLogs.push(...(step1.logs || []));
 
       if (step1.error || step1.skipped) {
@@ -89,7 +95,9 @@ export function PluginDebugPage() {
           });
           const body = await res.text();
           const headers: Record<string, string> = {};
-          res.headers.forEach((v, k) => { headers[k] = v; });
+          res.headers.forEach((v, k) => {
+            headers[k] = v;
+          });
           httpResponse = { status: res.status, headers, body };
           allLogs.push(`✓ 响应 ${res.status} (${body.length} 字节)`);
         } catch (err: any) {
@@ -100,7 +108,11 @@ export function PluginDebugPage() {
       // Step 3: Execute onResponse on backend (sandbox)
       let step3: any = null;
       if (httpResponse) {
-        step3 = await api.debugResponse({ script, mock_message: mockMessage, response: httpResponse });
+        step3 = await api.debugResponse({
+          script,
+          mock_message: mockMessage,
+          response: httpResponse,
+        });
         allLogs.push(...(step3.logs || []));
       }
 
@@ -121,10 +133,13 @@ export function PluginDebugPage() {
   }
 
   function loadPlugin(p: any) {
-    api.getPlugin(p.id).then((detail) => {
-      if (detail.script) setScript(detail.script);
-      setShowPicker(false);
-    }).catch(() => setShowPicker(false));
+    api
+      .getPlugin(p.id)
+      .then((detail) => {
+        if (detail.script) setScript(detail.script);
+        setShowPicker(false);
+      })
+      .catch(() => setShowPicker(false));
   }
 
   const allPlugins = [...myPlugins.filter((m) => !plugins.some((p) => p.id === m.id)), ...plugins];
@@ -144,20 +159,38 @@ export function PluginDebugPage() {
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium">脚本</p>
             <div className="relative">
-              <Button variant="outline" size="sm" className="text-xs h-6" onClick={() => setShowPicker(!showPicker)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-6"
+                onClick={() => setShowPicker(!showPicker)}
+              >
                 加载已有插件 <ChevronDown className="w-3 h-3 ml-1" />
               </Button>
               {showPicker && (
                 <div className="absolute right-0 top-7 z-10 w-64 border rounded-lg bg-background shadow-lg max-h-56 overflow-y-auto">
-                  {allPlugins.length === 0 && <p className="text-xs text-muted-foreground p-3 text-center">暂无插件</p>}
+                  {allPlugins.length === 0 && (
+                    <p className="text-xs text-muted-foreground p-3 text-center">暂无插件</p>
+                  )}
                   {allPlugins.map((p) => (
-                    <button key={p.id} onClick={() => loadPlugin(p)}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-secondary cursor-pointer border-b last:border-0 flex items-center justify-between">
-                      <span>{p.icon} {p.name} <span className="text-muted-foreground">v{p.version}</span></span>
+                    <button
+                      key={p.id}
+                      onClick={() => loadPlugin(p)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-secondary cursor-pointer border-b last:border-0 flex items-center justify-between"
+                    >
+                      <span>
+                        {p.icon} {p.name}{" "}
+                        <span className="text-muted-foreground">v{p.version}</span>
+                      </span>
                       <span className="text-xs text-muted-foreground">{p.status}</span>
                     </button>
                   ))}
-                  <button onClick={() => setShowPicker(false)} className="w-full text-center text-xs text-muted-foreground py-1.5 hover:text-primary cursor-pointer">关闭</button>
+                  <button
+                    onClick={() => setShowPicker(false)}
+                    className="w-full text-center text-xs text-muted-foreground py-1.5 hover:text-primary cursor-pointer"
+                  >
+                    关闭
+                  </button>
                 </div>
               )}
             </div>
@@ -177,25 +210,44 @@ export function PluginDebugPage() {
             <p className="text-xs font-medium">请求配置</p>
             <div>
               <label className="text-xs text-muted-foreground">Webhook URL</label>
-              <Input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} className="h-7 text-[11px] font-mono" />
+              <Input
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                className="h-7 text-[11px] font-mono"
+              />
             </div>
             <p className="text-xs font-medium mt-2">模拟消息</p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-muted-foreground">发送者</label>
-                <Input value={sender} onChange={(e) => setSender(e.target.value)} className="h-7 text-[11px]" />
+                <Input
+                  value={sender}
+                  onChange={(e) => setSender(e.target.value)}
+                  className="h-7 text-[11px]"
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">消息类型</label>
-                <select value={msgType} onChange={(e) => setMsgType(e.target.value)}
-                  className="w-full h-7 text-[11px] rounded-md border border-input bg-transparent px-2">
-                  {["text", "image", "voice", "video", "file"].map((t) => <option key={t} value={t}>{t}</option>)}
+                <select
+                  value={msgType}
+                  onChange={(e) => setMsgType(e.target.value)}
+                  className="w-full h-7 text-[11px] rounded-md border border-input bg-transparent px-2"
+                >
+                  {["text", "image", "voice", "video", "file"].map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">消息内容</label>
-              <Input value={content} onChange={(e) => setContent(e.target.value)} className="h-7 text-[11px]" />
+              <Input
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="h-7 text-[11px]"
+              />
             </div>
             <Button size="sm" onClick={handleRun} disabled={running} className="w-full mt-1">
               <Play className="w-3.5 h-3.5 mr-1" /> {running ? "执行中..." : "运行"}
@@ -209,11 +261,24 @@ export function PluginDebugPage() {
               <Card className="p-3 space-y-0.5">
                 <p className="text-xs font-medium mb-1">执行日志</p>
                 {(result.logs || []).map((log: string, i: number) => (
-                  <p key={i} className={`text-xs font-mono ${
-                    log.startsWith("✓") ? "text-primary" : log.startsWith("✕") ? "text-destructive" : log.startsWith("⚠") ? "text-yellow-500" : "text-muted-foreground"
-                  }`}>{log}</p>
+                  <p
+                    key={i}
+                    className={`text-xs font-mono ${
+                      log.startsWith("✓")
+                        ? "text-primary"
+                        : log.startsWith("✕")
+                          ? "text-destructive"
+                          : log.startsWith("⚠")
+                            ? "text-yellow-500"
+                            : "text-muted-foreground"
+                    }`}
+                  >
+                    {log}
+                  </p>
                 ))}
-                {result.error && <p className="text-xs font-mono text-destructive">✕ {result.error}</p>}
+                {result.error && (
+                  <p className="text-xs font-mono text-destructive">✕ {result.error}</p>
+                )}
               </Card>
 
               {/* Permissions */}
@@ -221,7 +286,10 @@ export function PluginDebugPage() {
                 <Card className="p-3">
                   <p className="text-xs font-medium mb-1">解析结果</p>
                   <div className="text-xs text-muted-foreground space-y-0.5">
-                    <p>@grant: {(result.permissions.grants || []).join(", ") || "（未声明，默认全开）"}</p>
+                    <p>
+                      @grant:{" "}
+                      {(result.permissions.grants || []).join(", ") || "（未声明，默认全开）"}
+                    </p>
                     <p>@match: {result.permissions.match || "*"}</p>
                     <p>@connect: {result.permissions.connect || "*"}</p>
                   </div>
@@ -238,8 +306,14 @@ export function PluginDebugPage() {
                       {r.type === "forward" && <p className="text-yellow-500">[转发二进制响应]</p>}
                       {r.type === "base64" && (
                         <div>
-                          <p className="text-yellow-500">[base64 媒体{r.filename ? `: ${r.filename}` : ""}]</p>
-                          {r.base64 && <p className="text-muted-foreground truncate">{r.base64.slice(0, 60)}...</p>}
+                          <p className="text-yellow-500">
+                            [base64 媒体{r.filename ? `: ${r.filename}` : ""}]
+                          </p>
+                          {r.base64 && (
+                            <p className="text-muted-foreground truncate">
+                              {r.base64.slice(0, 60)}...
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -252,12 +326,16 @@ export function PluginDebugPage() {
                 <Card className="overflow-hidden">
                   <div className="px-3 py-1.5 border-b flex items-center justify-between bg-secondary/30">
                     <p className="text-xs font-medium">请求</p>
-                    <span className="text-xs font-mono text-muted-foreground">{result.request.method} {result.request.url}</span>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {result.request.method} {result.request.url}
+                    </span>
                   </div>
                   {Object.keys(result.request.headers || {}).length > 0 && (
                     <div className="px-3 py-1.5 border-b text-xs text-muted-foreground">
                       {Object.entries(result.request.headers).map(([k, v]) => (
-                        <p key={k} className="font-mono">{k}: {v as string}</p>
+                        <p key={k} className="font-mono">
+                          {k}: {v as string}
+                        </p>
                       ))}
                     </div>
                   )}
@@ -272,7 +350,9 @@ export function PluginDebugPage() {
                 <Card className="overflow-hidden">
                   <div className="px-3 py-1.5 border-b flex items-center justify-between bg-secondary/30">
                     <p className="text-xs font-medium">响应</p>
-                    <span className={`text-xs font-mono ${result.response.status < 400 ? "text-primary" : "text-destructive"}`}>
+                    <span
+                      className={`text-xs font-mono ${result.response.status < 400 ? "text-primary" : "text-destructive"}`}
+                    >
                       {result.response.status}
                     </span>
                   </div>
@@ -284,7 +364,9 @@ export function PluginDebugPage() {
 
               {result.skipped && (
                 <Card className="p-3 border-yellow-500/30 bg-yellow-500/5">
-                  <p className="text-xs text-yellow-500">⚠ skip() 被调用 — 部署后不会发送 HTTP 请求</p>
+                  <p className="text-xs text-yellow-500">
+                    ⚠ skip() 被调用 — 部署后不会发送 HTTP 请求
+                  </p>
                 </Card>
               )}
             </div>
@@ -296,5 +378,9 @@ export function PluginDebugPage() {
 }
 
 function tryPrettyJSON(s: string): string {
-  try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
 }

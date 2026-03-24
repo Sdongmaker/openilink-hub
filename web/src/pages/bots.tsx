@@ -8,7 +8,10 @@ import { Plus, Trash2, RefreshCw, Bot } from "lucide-react";
 import { api } from "../lib/api";
 
 const statusVariant: Record<string, "default" | "destructive" | "outline"> = {
-  connected: "default", disconnected: "outline", error: "destructive", session_expired: "destructive",
+  connected: "default",
+  disconnected: "outline",
+  error: "destructive",
+  session_expired: "destructive",
 };
 
 export function BotsPage() {
@@ -25,7 +28,7 @@ export function BotsPage() {
     setBots(b || []);
     // Load channels for all bots
     const allChannels: any[] = [];
-    for (const bot of (b || [])) {
+    for (const bot of b || []) {
       const chs = await api.listChannels(bot.id);
       allChannels.push(...(chs || []));
     }
@@ -34,7 +37,13 @@ export function BotsPage() {
 
   useEffect(() => {
     load();
-    api.info().then((f) => { setHasGlobalAI(f.ai); setEnableAI(f.ai); }).catch(() => {});
+    api
+      .info()
+      .then((f) => {
+        setHasGlobalAI(f.ai);
+        setEnableAI(f.ai);
+      })
+      .catch(() => {});
   }, []);
 
   async function startBind() {
@@ -44,18 +53,30 @@ export function BotsPage() {
       const { session_id, qr_url } = await api.bindStart();
       setQrUrl(qr_url);
       setBindStatus("请用微信扫描二维码");
-      const es = new EventSource(`/api/bots/bind/status/${session_id}${enableAI ? "?enable_ai=true" : ""}`);
+      const es = new EventSource(
+        `/api/bots/bind/status/${session_id}${enableAI ? "?enable_ai=true" : ""}`,
+      );
       es.addEventListener("status", (e) => {
         const data = JSON.parse(e.data);
         if (data.status === "scanned") setBindStatus("已扫码，请在微信确认...");
-        if (data.status === "refreshed") { setQrUrl(data.qr_url); setBindStatus("二维码已刷新"); }
+        if (data.status === "refreshed") {
+          setQrUrl(data.qr_url);
+          setBindStatus("二维码已刷新");
+        }
         if (data.status === "connected") {
           setBindStatus("绑定成功！");
           es.close();
-          setTimeout(() => { setBinding(false); setQrUrl(""); load(); }, 1000);
+          setTimeout(() => {
+            setBinding(false);
+            setQrUrl("");
+            load();
+          }, 1000);
         }
       });
-      es.addEventListener("error", () => { setBindStatus("绑定失败"); es.close(); });
+      es.addEventListener("error", () => {
+        setBindStatus("绑定失败");
+        es.close();
+      });
     } catch (err: any) {
       setBindStatus("失败: " + err.message);
     }
@@ -81,12 +102,26 @@ export function BotsPage() {
           <p className="text-sm text-muted-foreground">{bindStatus}</p>
           {hasGlobalAI && (
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={enableAI} onChange={(e) => setEnableAI(e.target.checked)} className="w-3.5 h-3.5 accent-primary" />
+              <input
+                type="checkbox"
+                checked={enableAI}
+                onChange={(e) => setEnableAI(e.target.checked)}
+                className="w-3.5 h-3.5 accent-primary"
+              />
               <Bot className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">自动开启内置 AI 回复</span>
             </label>
           )}
-          <Button variant="ghost" size="sm" onClick={() => { setBinding(false); setQrUrl(""); }}>取消</Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setBinding(false);
+              setQrUrl("");
+            }}
+          >
+            取消
+          </Button>
         </Card>
       ) : null}
 
@@ -100,7 +135,9 @@ export function BotsPage() {
       ))}
 
       {bots.length === 0 && !binding && (
-        <p className="text-center text-sm text-muted-foreground py-8">点击上方按钮绑定你的第一个 Bot</p>
+        <p className="text-center text-sm text-muted-foreground py-8">
+          点击上方按钮绑定你的第一个 Bot
+        </p>
       )}
     </div>
   );
@@ -110,13 +147,25 @@ function QrCanvas({ url }: { url: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (!url || !ref.current) return;
-    QRCode.toCanvas(ref.current, url, { width: 224, margin: 2, color: { dark: "#000", light: "#fff" } });
+    QRCode.toCanvas(ref.current, url, {
+      width: 224,
+      margin: 2,
+      color: { dark: "#000", light: "#fff" },
+    });
   }, [url]);
   if (!url) return null;
   return <canvas ref={ref} className="rounded-lg" />;
 }
 
-function BotCard({ bot, channelCount, onRefresh }: { bot: any; channelCount: number; onRefresh: () => void }) {
+function BotCard({
+  bot,
+  channelCount,
+  onRefresh,
+}: {
+  bot: any;
+  channelCount: number;
+  onRefresh: () => void;
+}) {
   const navigate = useNavigate();
 
   async function handleDelete(e: React.MouseEvent) {

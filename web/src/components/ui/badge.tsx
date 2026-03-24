@@ -7,14 +7,23 @@ const variants = {
   outline: "border text-foreground",
 };
 
-export function Badge({ variant = "default", className, children }: {
-  variant?: keyof typeof variants; className?: string; children: React.ReactNode;
+export function Badge({
+  variant = "default",
+  className,
+  children,
+}: {
+  variant?: keyof typeof variants;
+  className?: string;
+  children: React.ReactNode;
 }) {
   return (
-    <span className={cn(
-      "inline-flex items-center rounded-md border border-transparent px-2.5 py-0.5 text-xs font-medium transition-colors",
-      variants[variant], className
-    )}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md border border-transparent px-2.5 py-0.5 text-xs font-medium transition-colors",
+        variants[variant],
+        className,
+      )}
+    >
       {children}
     </span>
   );

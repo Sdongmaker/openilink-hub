@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Copy, Check, Cable, Bot, Webhook, Radio, RotateCw, Trash2, Puzzle } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  Check,
+  Cable,
+  Bot,
+  Webhook,
+  Radio,
+  RotateCw,
+  Trash2,
+  Puzzle,
+} from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -11,7 +22,9 @@ export function ChannelDetailPage() {
   const navigate = useNavigate();
   const [channel, setChannel] = useState<any>(null);
   const [bot, setBot] = useState<any>(null);
-  const [tab, setTab] = useState<"overview" | "connect" | "webhook" | "ai" | "filter" | "live" | "logs">("overview");
+  const [tab, setTab] = useState<
+    "overview" | "connect" | "webhook" | "ai" | "filter" | "live" | "logs"
+  >("overview");
 
   async function load() {
     const bots = await api.listBots();
@@ -21,7 +34,9 @@ export function ChannelDetailPage() {
     setChannel((chs || []).find((c: any) => c.id === channelId) || null);
   }
 
-  useEffect(() => { load(); }, [botId, channelId]);
+  useEffect(() => {
+    load();
+  }, [botId, channelId]);
 
   async function handleDelete() {
     if (!confirm("删除此渠道？")) return;
@@ -50,13 +65,20 @@ export function ChannelDetailPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3 pb-4 border-b">
-        <Link to={`/dashboard/bot/${botId}`} className="text-muted-foreground hover:text-foreground">
+        <Link
+          to={`/dashboard/bot/${botId}`}
+          className="text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="font-semibold text-base">{channel.name}</h1>
-            {channel.handle && <span className="text-xs text-muted-foreground font-mono bg-secondary px-1.5 py-0.5 rounded">@{channel.handle}</span>}
+            {channel.handle && (
+              <span className="text-xs text-muted-foreground font-mono bg-secondary px-1.5 py-0.5 rounded">
+                @{channel.handle}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{bot.name} · 渠道</p>
         </div>
@@ -73,7 +95,11 @@ export function ChannelDetailPage() {
       {/* Tabs */}
       <div className="flex border rounded-lg overflow-hidden w-fit mt-1">
         {tabs.map((t) => (
-          <button key={t.key} className={`px-3 py-1.5 text-xs cursor-pointer ${tab === t.key ? "bg-secondary font-medium" : "text-muted-foreground"}`} onClick={() => setTab(t.key)}>
+          <button
+            key={t.key}
+            className={`px-3 py-1.5 text-xs cursor-pointer ${tab === t.key ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+            onClick={() => setTab(t.key)}
+          >
             {t.label}
           </button>
         ))}
@@ -93,7 +119,15 @@ export function ChannelDetailPage() {
 
 // ==================== Overview ====================
 
-function OverviewTab({ channel, botId, onRefresh }: { channel: any; botId: string; onRefresh: () => void }) {
+function OverviewTab({
+  channel,
+  botId,
+  onRefresh,
+}: {
+  channel: any;
+  botId: string;
+  onRefresh: () => void;
+}) {
   const [editingName, setEditingName] = useState(false);
   const [editingHandle, setEditingHandle] = useState(false);
   const [name, setName] = useState(channel.name);
@@ -102,9 +136,12 @@ function OverviewTab({ channel, botId, onRefresh }: { channel: any; botId: strin
 
   useEffect(() => {
     if (channel.webhook_config?.plugin_id) {
-      api.getPlugin(channel.webhook_config.plugin_id).then((d) => {
-        setPluginInfo({ ...(d.plugin || {}), ...(d.latest_version || {}) });
-      }).catch(() => {});
+      api
+        .getPlugin(channel.webhook_config.plugin_id)
+        .then((d) => {
+          setPluginInfo({ ...d.plugin, ...d.latest_version });
+        })
+        .catch(() => {});
     }
   }, [channel]);
 
@@ -121,14 +158,22 @@ function OverviewTab({ channel, botId, onRefresh }: { channel: any; botId: strin
 
   const cards = [
     { label: "名称", value: editingName ? null : channel.name, action: () => setEditingName(true) },
-    { label: "@提及", value: channel.handle || "（全部消息）", action: () => setEditingHandle(true) },
+    {
+      label: "@提及",
+      value: channel.handle || "（全部消息）",
+      action: () => setEditingHandle(true),
+    },
   ];
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {cards.map((c) => (
-          <div key={c.label} className="p-3 rounded-lg border bg-card cursor-pointer hover:border-primary/50" onClick={c.action}>
+          <div
+            key={c.label}
+            className="p-3 rounded-lg border bg-card cursor-pointer hover:border-primary/50"
+            onClick={c.action}
+          >
             <p className="text-xs text-muted-foreground">{c.label}</p>
             <p className="text-sm font-medium mt-0.5">{c.value}</p>
           </div>
@@ -137,7 +182,10 @@ function OverviewTab({ channel, botId, onRefresh }: { channel: any; botId: strin
         {channel.ai_config?.enabled && (
           <div className="p-3 rounded-lg border bg-card">
             <p className="text-xs text-muted-foreground">AI 回复</p>
-            <p className="text-sm font-medium mt-0.5 flex items-center gap-1"><Bot className="w-3 h-3" /> {channel.ai_config.source === "builtin" ? "内置" : "自定义"}</p>
+            <p className="text-sm font-medium mt-0.5 flex items-center gap-1">
+              <Bot className="w-3 h-3" />{" "}
+              {channel.ai_config.source === "builtin" ? "内置" : "自定义"}
+            </p>
           </div>
         )}
         {channel.webhook_config?.url && (
@@ -149,24 +197,57 @@ function OverviewTab({ channel, botId, onRefresh }: { channel: any; botId: strin
         {pluginInfo && (
           <div className="p-3 rounded-lg border bg-card">
             <p className="text-xs text-muted-foreground">插件</p>
-            <p className="text-sm font-medium mt-0.5">{pluginInfo.icon} {pluginInfo.name} v{pluginInfo.version}</p>
+            <p className="text-sm font-medium mt-0.5">
+              {pluginInfo.icon} {pluginInfo.name} v{pluginInfo.version}
+            </p>
           </div>
         )}
       </div>
 
       {editingName && (
-        <form onSubmit={(e) => { e.preventDefault(); saveName(); }} className="flex gap-2 items-center">
-          <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8 text-sm" autoFocus />
-          <Button size="sm" type="submit">保存</Button>
-          <Button size="sm" variant="ghost" onClick={() => setEditingName(false)}>取消</Button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveName();
+          }}
+          className="flex gap-2 items-center"
+        >
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="h-8 text-sm"
+            autoFocus
+          />
+          <Button size="sm" type="submit">
+            保存
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditingName(false)}>
+            取消
+          </Button>
         </form>
       )}
       {editingHandle && (
-        <form onSubmit={(e) => { e.preventDefault(); saveHandle(); }} className="flex gap-2 items-center">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveHandle();
+          }}
+          className="flex gap-2 items-center"
+        >
           <span className="text-sm">@</span>
-          <Input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="留空接收全部消息" className="h-8 text-sm w-40" autoFocus />
-          <Button size="sm" type="submit">保存</Button>
-          <Button size="sm" variant="ghost" onClick={() => setEditingHandle(false)}>取消</Button>
+          <Input
+            value={handle}
+            onChange={(e) => setHandle(e.target.value)}
+            placeholder="留空接收全部消息"
+            className="h-8 text-sm w-40"
+            autoFocus
+          />
+          <Button size="sm" type="submit">
+            保存
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditingHandle(false)}>
+            取消
+          </Button>
         </form>
       )}
     </div>
@@ -181,8 +262,13 @@ function CopyCard({ label, value }: { label: string; value: string }) {
     setTimeout(() => setCopied(false), 2000);
   }
   return (
-    <div className="p-3 rounded-lg border bg-card cursor-pointer hover:border-primary/50" onClick={copy}>
-      <p className="text-xs text-muted-foreground">{label} {copied && <Check className="w-3 h-3 inline text-primary" />}</p>
+    <div
+      className="p-3 rounded-lg border bg-card cursor-pointer hover:border-primary/50"
+      onClick={copy}
+    >
+      <p className="text-xs text-muted-foreground">
+        {label} {copied && <Check className="w-3 h-3 inline text-primary" />}
+      </p>
       <p className="text-xs font-mono mt-0.5 truncate">{value}</p>
     </div>
   );
@@ -234,8 +320,17 @@ function CopyField({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs text-muted-foreground w-16 shrink-0">{label}</span>
-      <code className="flex-1 text-xs font-mono bg-card border rounded px-2 py-1 truncate select-all">{value}</code>
-      <button onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="cursor-pointer text-muted-foreground hover:text-foreground shrink-0">
+      <code className="flex-1 text-xs font-mono bg-card border rounded px-2 py-1 truncate select-all">
+        {value}
+      </code>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        className="cursor-pointer text-muted-foreground hover:text-foreground shrink-0"
+      >
         {copied ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
       </button>
     </div>
@@ -244,14 +339,24 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 // ==================== Webhook ====================
 
-function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string; onRefresh: () => void }) {
+function WebhookTab({
+  channel,
+  botId,
+  onRefresh,
+}: {
+  channel: any;
+  botId: string;
+  onRefresh: () => void;
+}) {
   const cfg = channel.webhook_config || {};
   const [url, setUrl] = useState(cfg.url || "");
   const [authType, setAuthType] = useState(cfg.auth?.type || "");
   const [authToken, setAuthToken] = useState(cfg.auth?.token || "");
   const [authName, setAuthName] = useState(cfg.auth?.name || "");
   const [authValue, setAuthValue] = useState(cfg.auth?.value || cfg.auth?.secret || "");
-  const [scriptMode, setScriptMode] = useState<"plugin" | "manual">(cfg.plugin_id ? "plugin" : "manual");
+  const [scriptMode, setScriptMode] = useState<"plugin" | "manual">(
+    cfg.plugin_id ? "plugin" : "manual",
+  );
   const [script, setScript] = useState(cfg.script || "");
   const [pluginId, setPluginId] = useState(cfg.plugin_id || "");
   const [versionId, setVersionId] = useState(cfg.version_id || "");
@@ -262,73 +367,135 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (pluginId) api.getPlugin(pluginId).then((d) => {
-      // Merge plugin + latest version
-      setPluginInfo({ ...(d.plugin || {}), ...(d.latest_version || {}) });
-    }).catch(() => setPluginInfo(null));
+    if (pluginId)
+      api
+        .getPlugin(pluginId)
+        .then((d) => {
+          // Merge plugin + latest version
+          setPluginInfo({ ...d.plugin, ...d.latest_version });
+        })
+        .catch(() => setPluginInfo(null));
   }, [pluginId]);
   useEffect(() => {
-    if (showPicker) api.listPlugins().then((l) => setPlugins(l || [])).catch(() => {});
+    if (showPicker)
+      api
+        .listPlugins()
+        .then((l) => setPlugins(l || []))
+        .catch(() => {});
   }, [showPicker]);
 
   async function handleSave() {
-    setSaving(true); setError("");
+    setSaving(true);
+    setError("");
     try {
       let auth: any = null;
       if (authType === "bearer" && authToken) auth = { type: "bearer", token: authToken };
-      else if (authType === "header" && authName) auth = { type: "header", name: authName, value: authValue };
+      else if (authType === "header" && authName)
+        auth = { type: "header", name: authName, value: authValue };
       else if (authType === "hmac" && authValue) auth = { type: "hmac", secret: authValue };
       await api.updateChannel(botId, channel.id, {
         webhook_config: {
-          url, auth,
+          url,
+          auth,
           plugin_id: scriptMode === "plugin" ? pluginId : undefined,
           version_id: scriptMode === "plugin" ? versionId : undefined,
-          script: scriptMode === "manual" ? (script || undefined) : undefined,
+          script: scriptMode === "manual" ? script || undefined : undefined,
         },
       });
       onRefresh();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      setError(err.message);
+    }
     setSaving(false);
   }
 
   async function installPlugin(id: string) {
     try {
       const r = await api.installPluginToChannel(id, botId, channel.id);
-      setPluginId(r.plugin_id); setVersionId(r.version_id); setScriptMode("plugin"); setScript(""); setShowPicker(false);
+      setPluginId(r.plugin_id);
+      setVersionId(r.version_id);
+      setScriptMode("plugin");
+      setScript("");
+      setShowPicker(false);
       onRefresh();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      setError(err.message);
+    }
   }
 
   return (
     <div className="space-y-3">
-      <Input placeholder="https://your-server.com/webhook" value={url} onChange={(e) => setUrl(e.target.value)} className="h-8 text-xs font-mono" />
+      <Input
+        placeholder="https://your-server.com/webhook"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        className="h-8 text-xs font-mono"
+      />
 
       {/* Auth */}
       <div>
         <p className="text-xs text-muted-foreground mb-1">认证方式</p>
         <div className="flex gap-1">
           {["", "bearer", "header", "hmac"].map((t) => (
-            <button key={t} onClick={() => setAuthType(t)} className={`px-2 py-0.5 text-xs rounded cursor-pointer ${authType === t ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+            <button
+              key={t}
+              onClick={() => setAuthType(t)}
+              className={`px-2 py-0.5 text-xs rounded cursor-pointer ${authType === t ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+            >
               {t || "无"}
             </button>
           ))}
         </div>
       </div>
-      {authType === "bearer" && <Input placeholder="Token" value={authToken} onChange={(e) => setAuthToken(e.target.value)} className="h-7 text-[11px] font-mono" />}
+      {authType === "bearer" && (
+        <Input
+          placeholder="Token"
+          value={authToken}
+          onChange={(e) => setAuthToken(e.target.value)}
+          className="h-7 text-[11px] font-mono"
+        />
+      )}
       {authType === "header" && (
         <div className="flex gap-2">
-          <Input placeholder="Header 名" value={authName} onChange={(e) => setAuthName(e.target.value)} className="h-7 text-[11px] font-mono" />
-          <Input placeholder="Header 值" value={authValue} onChange={(e) => setAuthValue(e.target.value)} className="h-7 text-[11px] font-mono" />
+          <Input
+            placeholder="Header 名"
+            value={authName}
+            onChange={(e) => setAuthName(e.target.value)}
+            className="h-7 text-[11px] font-mono"
+          />
+          <Input
+            placeholder="Header 值"
+            value={authValue}
+            onChange={(e) => setAuthValue(e.target.value)}
+            className="h-7 text-[11px] font-mono"
+          />
         </div>
       )}
-      {authType === "hmac" && <Input placeholder="HMAC Secret" value={authValue} onChange={(e) => setAuthValue(e.target.value)} className="h-7 text-[11px] font-mono" />}
+      {authType === "hmac" && (
+        <Input
+          placeholder="HMAC Secret"
+          value={authValue}
+          onChange={(e) => setAuthValue(e.target.value)}
+          className="h-7 text-[11px] font-mono"
+        />
+      )}
 
       {/* Script source */}
       <div>
         <p className="text-xs text-muted-foreground mb-1">脚本来源</p>
         <div className="flex gap-1">
-          <button onClick={() => setScriptMode("plugin")} className={`px-2 py-0.5 text-xs rounded cursor-pointer ${scriptMode === "plugin" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>插件市场</button>
-          <button onClick={() => setScriptMode("manual")} className={`px-2 py-0.5 text-xs rounded cursor-pointer ${scriptMode === "manual" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>手动脚本</button>
+          <button
+            onClick={() => setScriptMode("plugin")}
+            className={`px-2 py-0.5 text-xs rounded cursor-pointer ${scriptMode === "plugin" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+          >
+            插件市场
+          </button>
+          <button
+            onClick={() => setScriptMode("manual")}
+            className={`px-2 py-0.5 text-xs rounded cursor-pointer ${scriptMode === "manual" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+          >
+            手动脚本
+          </button>
         </div>
       </div>
 
@@ -343,13 +510,17 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
                       {pluginInfo.icon && <span className="text-base">{pluginInfo.icon}</span>}
                       <span className="text-xs font-medium">{pluginInfo.name}</span>
                       <span className="text-xs text-muted-foreground">v{pluginInfo.version}</span>
-                      {pluginInfo.license && <span className="text-xs text-muted-foreground">{pluginInfo.license}</span>}
+                      {pluginInfo.license && (
+                        <span className="text-xs text-muted-foreground">{pluginInfo.license}</span>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{pluginInfo.description}</p>
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                       <span>by {pluginInfo.author || "anonymous"}</span>
                       <span>{pluginInfo.install_count} 安装</span>
-                      {pluginInfo.namespace && <span className="font-mono">{pluginInfo.namespace}</span>}
+                      {pluginInfo.namespace && (
+                        <span className="font-mono">{pluginInfo.namespace}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -357,34 +528,89 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>@grant: {pluginInfo.grant_perms || "none"}</span>
                   <span>@match: {pluginInfo.match_types || "*"}</span>
-                  {pluginInfo.connect_domains && pluginInfo.connect_domains !== "*" && <span>@connect: {pluginInfo.connect_domains}</span>}
+                  {pluginInfo.connect_domains && pluginInfo.connect_domains !== "*" && (
+                    <span>@connect: {pluginInfo.connect_domains}</span>
+                  )}
                 </div>
-                {pluginInfo.changelog && <p className="text-xs text-muted-foreground">更新: {pluginInfo.changelog}</p>}
+                {pluginInfo.changelog && (
+                  <p className="text-xs text-muted-foreground">更新: {pluginInfo.changelog}</p>
+                )}
               </div>
               <div className="border-t px-3 py-1.5 flex items-center gap-2">
-                <a href={`/dashboard/webhook-plugins/debug?plugin=${pluginId}`} className="text-xs text-primary hover:underline">调试</a>
-                {pluginInfo.github_url && <a href={pluginInfo.github_url} target="_blank" rel="noopener" className="text-xs text-primary hover:underline">GitHub</a>}
+                <a
+                  href={`/dashboard/webhook-plugins/debug?plugin=${pluginId}`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  调试
+                </a>
+                {pluginInfo.github_url && (
+                  <a
+                    href={pluginInfo.github_url}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-xs text-primary hover:underline"
+                  >
+                    GitHub
+                  </a>
+                )}
                 <div className="ml-auto flex gap-1">
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setShowPicker(true)}>更换</Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => { setPluginId(""); setVersionId(""); setPluginInfo(null); setScriptMode("manual"); }}>卸载</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setShowPicker(true)}
+                  >
+                    更换
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-destructive"
+                    onClick={() => {
+                      setPluginId("");
+                      setVersionId("");
+                      setPluginInfo(null);
+                      setScriptMode("manual");
+                    }}
+                  >
+                    卸载
+                  </Button>
                 </div>
               </div>
             </div>
           ) : (
-            <Button variant="outline" size="sm" className="w-full text-xs h-7" onClick={() => setShowPicker(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs h-7"
+              onClick={() => setShowPicker(true)}
+            >
               <Puzzle className="w-3 h-3 mr-1" /> 选择插件
             </Button>
           )}
           {showPicker && (
             <div className="border rounded p-2 space-y-1 max-h-48 overflow-y-auto bg-card">
-              {plugins.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">暂无可用插件</p>}
+              {plugins.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">暂无可用插件</p>
+              )}
               {plugins.map((p) => (
-                <button key={p.id} onClick={() => installPlugin(p.id)} className="w-full text-left p-1.5 rounded hover:bg-secondary cursor-pointer text-xs flex items-center justify-between">
-                  <span>{p.icon} {p.name} <span className="text-muted-foreground">v{p.version}</span></span>
+                <button
+                  key={p.id}
+                  onClick={() => installPlugin(p.id)}
+                  className="w-full text-left p-1.5 rounded hover:bg-secondary cursor-pointer text-xs flex items-center justify-between"
+                >
+                  <span>
+                    {p.icon} {p.name} <span className="text-muted-foreground">v{p.version}</span>
+                  </span>
                   <span className="text-xs text-muted-foreground">{p.install_count} 安装</span>
                 </button>
               ))}
-              <button onClick={() => setShowPicker(false)} className="w-full text-center text-xs text-muted-foreground hover:text-primary cursor-pointer py-1">取消</button>
+              <button
+                onClick={() => setShowPicker(false)}
+                className="w-full text-center text-xs text-muted-foreground hover:text-primary cursor-pointer py-1"
+              >
+                取消
+              </button>
             </div>
           )}
         </div>
@@ -402,7 +628,11 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
 
       <div className="flex items-center justify-between">
         {error && <span className="text-xs text-destructive">{error}</span>}
-        <div className="ml-auto"><Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "..." : "保存"}</Button></div>
+        <div className="ml-auto">
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "..." : "保存"}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -410,7 +640,15 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
 
 // ==================== AI ====================
 
-function AITab({ channel, botId, onRefresh }: { channel: any; botId: string; onRefresh: () => void }) {
+function AITab({
+  channel,
+  botId,
+  onRefresh,
+}: {
+  channel: any;
+  botId: string;
+  onRefresh: () => void;
+}) {
   const cfg = channel.ai_config || {};
   const [enabled, setEnabled] = useState(cfg.enabled || false);
   const [source, setSource] = useState(cfg.source || "builtin");
@@ -425,7 +663,15 @@ function AITab({ channel, botId, onRefresh }: { channel: any; botId: string; onR
     setSaving(true);
     try {
       await api.updateChannel(botId, channel.id, {
-        ai_config: { enabled, source, base_url: baseUrl, api_key: apiKey || undefined, model, system_prompt: systemPrompt, max_history: maxHistory },
+        ai_config: {
+          enabled,
+          source,
+          base_url: baseUrl,
+          api_key: apiKey || undefined,
+          model,
+          system_prompt: systemPrompt,
+          max_history: maxHistory,
+        },
       });
       onRefresh();
     } catch {}
@@ -435,22 +681,53 @@ function AITab({ channel, botId, onRefresh }: { channel: any; botId: string; onR
   return (
     <div className="space-y-3">
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="w-3.5 h-3.5 accent-primary" />
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className="w-3.5 h-3.5 accent-primary"
+        />
         <span className="text-sm">启用 AI 自动回复</span>
       </label>
 
       {enabled && (
         <>
           <div className="flex gap-1">
-            <button onClick={() => setSource("builtin")} className={`px-2 py-0.5 text-xs rounded cursor-pointer ${source === "builtin" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>内置（全局配置）</button>
-            <button onClick={() => setSource("custom")} className={`px-2 py-0.5 text-xs rounded cursor-pointer ${source === "custom" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>自定义</button>
+            <button
+              onClick={() => setSource("builtin")}
+              className={`px-2 py-0.5 text-xs rounded cursor-pointer ${source === "builtin" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+            >
+              内置（全局配置）
+            </button>
+            <button
+              onClick={() => setSource("custom")}
+              className={`px-2 py-0.5 text-xs rounded cursor-pointer ${source === "custom" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+            >
+              自定义
+            </button>
           </div>
           {source === "custom" && (
             <div className="space-y-2">
-              <Input placeholder="https://api.openai.com/v1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className="h-7 text-[11px] font-mono" />
+              <Input
+                placeholder="https://api.openai.com/v1"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                className="h-7 text-[11px] font-mono"
+              />
               <div className="flex gap-2">
-                <Input type="password" placeholder="API Key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="h-7 text-[11px] font-mono" />
-                <Input placeholder="模型名称" value={model} onChange={(e) => setModel(e.target.value)} className="h-7 text-[11px] font-mono w-40" />
+                <Input
+                  type="password"
+                  placeholder="API Key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="h-7 text-[11px] font-mono"
+                />
+                <Input
+                  placeholder="模型名称"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="h-7 text-[11px] font-mono w-40"
+                />
               </div>
             </div>
           )}
@@ -463,13 +740,22 @@ function AITab({ channel, botId, onRefresh }: { channel: any; botId: string; onR
           />
           <div className="flex items-center gap-2">
             <label className="text-xs text-muted-foreground">上下文消息数</label>
-            <Input type="number" value={maxHistory} onChange={(e) => setMaxHistory(parseInt(e.target.value) || 20)} className="h-7 text-xs w-20" min={1} max={100} />
+            <Input
+              type="number"
+              value={maxHistory}
+              onChange={(e) => setMaxHistory(parseInt(e.target.value) || 20)}
+              className="h-7 text-xs w-20"
+              min={1}
+              max={100}
+            />
           </div>
         </>
       )}
 
       <div className="flex justify-end">
-        <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "..." : "保存"}</Button>
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? "..." : "保存"}
+        </Button>
       </div>
     </div>
   );
@@ -477,7 +763,15 @@ function AITab({ channel, botId, onRefresh }: { channel: any; botId: string; onR
 
 // ==================== Filter ====================
 
-function FilterTab({ channel, botId, onRefresh }: { channel: any; botId: string; onRefresh: () => void }) {
+function FilterTab({
+  channel,
+  botId,
+  onRefresh,
+}: {
+  channel: any;
+  botId: string;
+  onRefresh: () => void;
+}) {
   const rule = channel.filter_rule || {};
   const [userIds, setUserIds] = useState((rule.user_ids || []).join(", "));
   const [keywords, setKeywords] = useState((rule.keywords || []).join(", "));
@@ -486,7 +780,11 @@ function FilterTab({ channel, botId, onRefresh }: { channel: any; botId: string;
 
   async function handleSave() {
     setSaving(true);
-    const parse = (s: string) => s.split(",").map((v) => v.trim()).filter(Boolean);
+    const parse = (s: string) =>
+      s
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
     try {
       await api.updateChannel(botId, channel.id, {
         filter_rule: {
@@ -502,23 +800,42 @@ function FilterTab({ channel, botId, onRefresh }: { channel: any; botId: string;
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">留空表示不过滤（接收所有消息）。多个值用逗号分隔。</p>
+      <p className="text-xs text-muted-foreground">
+        留空表示不过滤（接收所有消息）。多个值用逗号分隔。
+      </p>
       <div className="space-y-2">
         <div>
           <label className="text-xs text-muted-foreground">用户 ID 白名单</label>
-          <Input value={userIds} onChange={(e) => setUserIds(e.target.value)} placeholder="user1@wx, user2@wx" className="h-7 text-[11px] font-mono" />
+          <Input
+            value={userIds}
+            onChange={(e) => setUserIds(e.target.value)}
+            placeholder="user1@wx, user2@wx"
+            className="h-7 text-[11px] font-mono"
+          />
         </div>
         <div>
           <label className="text-xs text-muted-foreground">关键词匹配</label>
-          <Input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="help, urgent" className="h-7 text-[11px] font-mono" />
+          <Input
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="help, urgent"
+            className="h-7 text-[11px] font-mono"
+          />
         </div>
         <div>
           <label className="text-xs text-muted-foreground">消息类型</label>
-          <Input value={msgTypes} onChange={(e) => setMsgTypes(e.target.value)} placeholder="text, image, voice, video, file" className="h-7 text-[11px] font-mono" />
+          <Input
+            value={msgTypes}
+            onChange={(e) => setMsgTypes(e.target.value)}
+            placeholder="text, image, voice, video, file"
+            className="h-7 text-[11px] font-mono"
+          />
         </div>
       </div>
       <div className="flex justify-end">
-        <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "..." : "保存"}</Button>
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? "..." : "保存"}
+        </Button>
       </div>
     </div>
   );
@@ -540,7 +857,10 @@ function LiveTab({ channel }: { channel: any }) {
       const now = new Date().toLocaleTimeString();
       try {
         const msg = JSON.parse(e.data);
-        setLogs((prev) => [...prev.slice(-99), { time: now, type: msg.type, data: JSON.stringify(msg.data, null, 2) }]);
+        setLogs((prev) => [
+          ...prev.slice(-99),
+          { time: now, type: msg.type, data: JSON.stringify(msg.data, null, 2) },
+        ]);
       } catch {
         setLogs((prev) => [...prev.slice(-99), { time: now, type: "raw", data: e.data }]);
       }
@@ -551,14 +871,25 @@ function LiveTab({ channel }: { channel: any }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Radio className={`w-3 h-3 ${status === "connected" ? "text-primary" : "text-muted-foreground"}`} />
-        <span className="text-xs">{status === "connected" ? "已连接" : status === "connecting" ? "连接中..." : "已断开"}</span>
+        <Radio
+          className={`w-3 h-3 ${status === "connected" ? "text-primary" : "text-muted-foreground"}`}
+        />
+        <span className="text-xs">
+          {status === "connected" ? "已连接" : status === "connecting" ? "连接中..." : "已断开"}
+        </span>
         {logs.length > 0 && (
-          <button onClick={() => setLogs([])} className="text-xs text-muted-foreground hover:text-primary cursor-pointer ml-auto">清空</button>
+          <button
+            onClick={() => setLogs([])}
+            className="text-xs text-muted-foreground hover:text-primary cursor-pointer ml-auto"
+          >
+            清空
+          </button>
         )}
       </div>
       <div className="border rounded-lg bg-card p-2 max-h-96 overflow-y-auto space-y-1">
-        {logs.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">等待消息...</p>}
+        {logs.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-4">等待消息...</p>
+        )}
         {logs.map((log, i) => (
           <div key={i} className="text-xs font-mono">
             <span className="text-muted-foreground">{log.time}</span>{" "}
@@ -578,10 +909,16 @@ function WebhookLogsTab({ channel, botId }: { channel: any; botId: string }) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
   async function load() {
-    try { setLogs(await api.webhookLogs(botId, channel.id, 50) || []); } catch {}
+    try {
+      setLogs((await api.webhookLogs(botId, channel.id, 50)) || []);
+    } catch {}
   }
 
-  useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, [botId, channel.id]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [botId, channel.id]);
 
   const statusIcons: Record<string, { icon: string; color: string }> = {
     pending: { icon: "⏳", color: "text-muted-foreground" },
@@ -596,10 +933,14 @@ function WebhookLogsTab({ channel, botId }: { channel: any; botId: string }) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">{logs.length} 条日志（自动刷新）</p>
-        <button onClick={load} className="text-xs text-primary hover:underline cursor-pointer">刷新</button>
+        <button onClick={load} className="text-xs text-primary hover:underline cursor-pointer">
+          刷新
+        </button>
       </div>
 
-      {logs.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">暂无 Webhook 日志</p>}
+      {logs.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-8">暂无 Webhook 日志</p>
+      )}
 
       <div className="space-y-1">
         {logs.map((log) => {
@@ -607,17 +948,25 @@ function WebhookLogsTab({ channel, botId }: { channel: any; botId: string }) {
           const isOpen = expanded === log.id;
           return (
             <div key={log.id} className="rounded-lg border bg-card overflow-hidden">
-              <button onClick={() => setExpanded(isOpen ? null : log.id)}
-                className="w-full flex items-center gap-3 px-3 py-2 text-left cursor-pointer hover:bg-secondary/30">
+              <button
+                onClick={() => setExpanded(isOpen ? null : log.id)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-left cursor-pointer hover:bg-secondary/30"
+              >
                 <span className={`text-sm ${s.color}`}>{s.icon}</span>
                 <span className={`text-xs font-mono ${s.color}`}>
-                  {log.status === "success" || log.status === "failed" ? log.response_status : log.status}
+                  {log.status === "success" || log.status === "failed"
+                    ? log.response_status
+                    : log.status}
                 </span>
                 <span className="text-xs text-muted-foreground truncate flex-1">
                   {log.request_method} {log.request_url || "—"}
                 </span>
-                {log.duration_ms > 0 && <span className="text-xs text-muted-foreground">{log.duration_ms}ms</span>}
-                <span className="text-xs text-muted-foreground">{new Date(log.created_at * 1000).toLocaleTimeString()}</span>
+                {log.duration_ms > 0 && (
+                  <span className="text-xs text-muted-foreground">{log.duration_ms}ms</span>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {new Date(log.created_at * 1000).toLocaleTimeString()}
+                </span>
               </button>
 
               {isOpen && (
@@ -642,15 +991,15 @@ function WebhookLogsTab({ channel, botId }: { channel: any; botId: string }) {
                     </div>
                   )}
 
-                  {log.script_error && (
-                    <p className="text-destructive">错误: {log.script_error}</p>
-                  )}
+                  {log.script_error && <p className="text-destructive">错误: {log.script_error}</p>}
 
                   {log.replies && JSON.parse(log.replies || "[]").length > 0 && (
                     <div>
                       <p className="font-medium mb-0.5">reply()</p>
                       {JSON.parse(log.replies).map((r: string, i: number) => (
-                        <p key={i} className="font-mono text-primary">{r}</p>
+                        <p key={i} className="font-mono text-primary">
+                          {r}
+                        </p>
                       ))}
                     </div>
                   )}
@@ -665,5 +1014,9 @@ function WebhookLogsTab({ channel, botId }: { channel: any; botId: string }) {
 }
 
 function tryFormat(s: string): string {
-  try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
 }

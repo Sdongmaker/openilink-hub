@@ -37,10 +37,14 @@ export function AppDetailPage() {
     try {
       const a = await api.getApp(id!);
       setApp(a);
-    } catch { navigate("/dashboard/apps"); }
+    } catch {
+      navigate("/dashboard/apps");
+    }
   }
 
-  useEffect(() => { loadApp(); }, [id]);
+  useEffect(() => {
+    loadApp();
+  }, [id]);
 
   if (!app) return null;
 
@@ -69,9 +73,24 @@ export function AppDetailPage() {
 
       {/* Tabs */}
       <div className="flex rounded-lg border overflow-hidden w-fit">
-        <button className={`px-3 py-1.5 text-xs cursor-pointer ${tab === "settings" ? "bg-secondary font-medium" : "text-muted-foreground"}`} onClick={() => setTab("settings")}>设置</button>
-        <button className={`px-3 py-1.5 text-xs cursor-pointer ${tab === "installations" ? "bg-secondary font-medium" : "text-muted-foreground"}`} onClick={() => setTab("installations")}>安装</button>
-        <button className={`px-3 py-1.5 text-xs cursor-pointer ${tab === "events" ? "bg-secondary font-medium" : "text-muted-foreground"}`} onClick={() => setTab("events")}>事件与权限</button>
+        <button
+          className={`px-3 py-1.5 text-xs cursor-pointer ${tab === "settings" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+          onClick={() => setTab("settings")}
+        >
+          设置
+        </button>
+        <button
+          className={`px-3 py-1.5 text-xs cursor-pointer ${tab === "installations" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+          onClick={() => setTab("installations")}
+        >
+          安装
+        </button>
+        <button
+          className={`px-3 py-1.5 text-xs cursor-pointer ${tab === "events" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+          onClick={() => setTab("events")}
+        >
+          事件与权限
+        </button>
       </div>
 
       {tab === "settings" ? (
@@ -90,27 +109,36 @@ export function AppDetailPage() {
 function SettingsTab({ app, onUpdate }: { app: any; onUpdate: () => void }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    name: app.name || "", description: app.description || "",
-    icon: app.icon || "", homepage: app.homepage || "",
+    name: app.name || "",
+    description: app.description || "",
+    icon: app.icon || "",
+    homepage: app.homepage || "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   async function handleSave(e: React.FormEvent) {
-    e.preventDefault(); setError(""); setSuccess("");
+    e.preventDefault();
+    setError("");
+    setSuccess("");
     setSaving(true);
     try {
       await api.updateApp(app.id, form);
       setSuccess("已保存");
       onUpdate();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      setError(err.message);
+    }
     setSaving(false);
   }
 
   async function handleDelete() {
     if (!confirm("确定删除此 App？所有安装也将被移除。")) return;
-    try { await api.deleteApp(app.id); navigate("/dashboard/apps"); } catch {}
+    try {
+      await api.deleteApp(app.id);
+      navigate("/dashboard/apps");
+    } catch {}
   }
 
   return (
@@ -118,16 +146,38 @@ function SettingsTab({ app, onUpdate }: { app: any; onUpdate: () => void }) {
       <Card className="space-y-3">
         <h3 className="text-sm font-medium">基本信息</h3>
         <form onSubmit={handleSave} className="space-y-2">
-          <Input placeholder="名称" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="h-8 text-xs" />
-          <Input placeholder="描述" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="h-8 text-xs" />
-          <Input placeholder="图标 URL" value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} className="h-8 text-xs" />
-          <Input placeholder="主页 URL" value={form.homepage} onChange={(e) => setForm((f) => ({ ...f, homepage: e.target.value }))} className="h-8 text-xs" />
+          <Input
+            placeholder="名称"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            className="h-8 text-xs"
+          />
+          <Input
+            placeholder="描述"
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            className="h-8 text-xs"
+          />
+          <Input
+            placeholder="图标 URL"
+            value={form.icon}
+            onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
+            className="h-8 text-xs"
+          />
+          <Input
+            placeholder="主页 URL"
+            value={form.homepage}
+            onChange={(e) => setForm((f) => ({ ...f, homepage: e.target.value }))}
+            className="h-8 text-xs"
+          />
           <div className="flex items-center justify-between">
             <div>
               {error && <span className="text-xs text-destructive">{error}</span>}
               {success && <span className="text-xs text-primary">{success}</span>}
             </div>
-            <Button type="submit" size="sm" disabled={saving}>{saving ? "..." : "保存"}</Button>
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? "..." : "保存"}
+            </Button>
           </div>
         </form>
       </Card>
@@ -148,7 +198,7 @@ function SettingsTab({ app, onUpdate }: { app: any; onUpdate: () => void }) {
 
 function CommandsEditor({ app, onUpdate }: { app: any; onUpdate: () => void }) {
   const [commands, setCommands] = useState<{ name: string; description: string; usage: string }[]>(
-    app.commands || []
+    app.commands || [],
   );
   const [saving, setSaving] = useState(false);
 
@@ -161,7 +211,7 @@ function CommandsEditor({ app, onUpdate }: { app: any; onUpdate: () => void }) {
   }
 
   function updateCommand(index: number, field: string, value: string) {
-    setCommands(commands.map((c, i) => i === index ? { ...c, [field]: value } : c));
+    setCommands(commands.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
   }
 
   async function handleSave() {
@@ -181,15 +231,28 @@ function CommandsEditor({ app, onUpdate }: { app: any; onUpdate: () => void }) {
           <Plus className="w-3 h-3 mr-1" /> 添加命令
         </Button>
       </div>
-      {commands.length === 0 && (
-        <p className="text-xs text-muted-foreground">暂无命令</p>
-      )}
+      {commands.length === 0 && <p className="text-xs text-muted-foreground">暂无命令</p>}
       {commands.map((cmd, i) => (
         <div key={i} className="flex items-start gap-2 p-2 rounded-lg border bg-background">
           <div className="flex-1 space-y-1">
-            <Input placeholder="/命令名" value={cmd.name} onChange={(e) => updateCommand(i, "name", e.target.value)} className="h-7 text-xs font-mono" />
-            <Input placeholder="描述" value={cmd.description} onChange={(e) => updateCommand(i, "description", e.target.value)} className="h-7 text-xs" />
-            <Input placeholder="用法示例" value={cmd.usage} onChange={(e) => updateCommand(i, "usage", e.target.value)} className="h-7 text-xs" />
+            <Input
+              placeholder="/命令名"
+              value={cmd.name}
+              onChange={(e) => updateCommand(i, "name", e.target.value)}
+              className="h-7 text-xs font-mono"
+            />
+            <Input
+              placeholder="描述"
+              value={cmd.description}
+              onChange={(e) => updateCommand(i, "description", e.target.value)}
+              className="h-7 text-xs"
+            />
+            <Input
+              placeholder="用法示例"
+              value={cmd.usage}
+              onChange={(e) => updateCommand(i, "usage", e.target.value)}
+              className="h-7 text-xs"
+            />
           </div>
           <button onClick={() => removeCommand(i)} className="cursor-pointer mt-1">
             <Trash2 className="w-3.5 h-3.5 text-destructive" />
@@ -197,7 +260,9 @@ function CommandsEditor({ app, onUpdate }: { app: any; onUpdate: () => void }) {
         </div>
       ))}
       {commands.length > 0 && (
-        <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "..." : "保存命令"}</Button>
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? "..." : "保存命令"}
+        </Button>
       )}
     </Card>
   );
@@ -211,15 +276,18 @@ function EventsScopesTab({ app, onUpdate }: { app: any; onUpdate: () => void }) 
   const [saving, setSaving] = useState(false);
 
   function toggleEvent(key: string) {
-    setEvents((prev) => prev.includes(key) ? prev.filter((e) => e !== key) : [...prev, key]);
+    setEvents((prev) => (prev.includes(key) ? prev.filter((e) => e !== key) : [...prev, key]));
   }
   function toggleScope(key: string) {
-    setScopes((prev) => prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]);
+    setScopes((prev) => (prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]));
   }
 
   async function handleSave() {
     setSaving(true);
-    try { await api.updateApp(app.id, { events, scopes }); onUpdate(); } catch {}
+    try {
+      await api.updateApp(app.id, { events, scopes });
+      onUpdate();
+    } catch {}
     setSaving(false);
   }
 
@@ -231,7 +299,12 @@ function EventsScopesTab({ app, onUpdate }: { app: any; onUpdate: () => void }) 
         <div className="grid grid-cols-2 gap-2">
           {EVENT_TYPES.map((et) => (
             <label key={et.key} className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={events.includes(et.key)} onChange={() => toggleEvent(et.key)} className="w-3.5 h-3.5 accent-primary" />
+              <input
+                type="checkbox"
+                checked={events.includes(et.key)}
+                onChange={() => toggleEvent(et.key)}
+                className="w-3.5 h-3.5 accent-primary"
+              />
               <span className="text-xs">{et.label}</span>
               <span className="text-xs text-muted-foreground font-mono">{et.key}</span>
             </label>
@@ -245,7 +318,12 @@ function EventsScopesTab({ app, onUpdate }: { app: any; onUpdate: () => void }) 
         <div className="grid grid-cols-2 gap-2">
           {SCOPES.map((s) => (
             <label key={s.key} className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={scopes.includes(s.key)} onChange={() => toggleScope(s.key)} className="w-3.5 h-3.5 accent-primary" />
+              <input
+                type="checkbox"
+                checked={scopes.includes(s.key)}
+                onChange={() => toggleScope(s.key)}
+                className="w-3.5 h-3.5 accent-primary"
+              />
               <span className="text-xs">{s.label}</span>
               <span className="text-xs text-muted-foreground font-mono">{s.key}</span>
             </label>
@@ -253,7 +331,9 @@ function EventsScopesTab({ app, onUpdate }: { app: any; onUpdate: () => void }) 
         </div>
       </Card>
 
-      <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "..." : "保存"}</Button>
+      <Button size="sm" onClick={handleSave} disabled={saving}>
+        {saving ? "..." : "保存"}
+      </Button>
     </div>
   );
 }
@@ -275,7 +355,9 @@ function InstallationsTab({ appId }: { appId: string }) {
     } catch {}
   }
 
-  useEffect(() => { load(); }, [appId]);
+  useEffect(() => {
+    load();
+  }, [appId]);
 
   async function handleInstall() {
     if (!selectedBot) return;
@@ -288,7 +370,16 @@ function InstallationsTab({ appId }: { appId: string }) {
   }
 
   if (detail) {
-    return <InstallationDetail appId={appId} installation={detail} onBack={() => { setDetail(null); load(); }} />;
+    return (
+      <InstallationDetail
+        appId={appId}
+        installation={detail}
+        onBack={() => {
+          setDetail(null);
+          load();
+        }}
+      />
+    );
   }
 
   return (
@@ -296,7 +387,12 @@ function InstallationsTab({ appId }: { appId: string }) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">已安装</h3>
         {!installing && (
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setInstalling(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setInstalling(true)}
+          >
             <Plus className="w-3 h-3 mr-1" /> 安装到 Bot
           </Button>
         )}
@@ -312,12 +408,18 @@ function InstallationsTab({ appId }: { appId: string }) {
           >
             <option value="">选择一个 Bot...</option>
             {bots.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
             ))}
           </select>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleInstall} disabled={!selectedBot}>安装</Button>
-            <Button variant="ghost" size="sm" onClick={() => setInstalling(false)}>取消</Button>
+            <Button size="sm" onClick={handleInstall} disabled={!selectedBot}>
+              安装
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setInstalling(false)}>
+              取消
+            </Button>
           </div>
         </Card>
       )}
@@ -351,4 +453,3 @@ function InstallationsTab({ appId }: { appId: string }) {
     </div>
   );
 }
-

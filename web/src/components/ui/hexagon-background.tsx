@@ -1,10 +1,10 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 type HexagonBackgroundProps = React.ComponentProps<"div"> & {
-  hexagonSize?: number
-  hexagonMargin?: number
-  hexagonProps?: React.ComponentProps<"polygon">
-}
+  hexagonSize?: number;
+  hexagonMargin?: number;
+  hexagonProps?: React.ComponentProps<"polygon">;
+};
 
 export function HexagonBackground({
   className,
@@ -13,14 +13,14 @@ export function HexagonBackground({
   hexagonProps,
   ...props
 }: HexagonBackgroundProps) {
-  const viewWidth = 1600
-  const viewHeight = 1100
-  const width = hexagonSize
-  const height = Math.sqrt(3) * 0.5 * width
-  const horizontalStep = width + hexagonMargin
-  const verticalStep = height * 0.75 + hexagonMargin
-  const columns = Math.ceil(viewWidth / horizontalStep) + 2
-  const rows = Math.ceil(viewHeight / verticalStep) + 2
+  const viewWidth = 1600;
+  const viewHeight = 1100;
+  const width = hexagonSize;
+  const height = Math.sqrt(3) * 0.5 * width;
+  const horizontalStep = width + hexagonMargin;
+  const verticalStep = height * 0.75 + hexagonMargin;
+  const columns = Math.ceil(viewWidth / horizontalStep) + 2;
+  const rows = Math.ceil(viewHeight / verticalStep) + 2;
   const points = [
     `${width * 0.25},0`,
     `${width * 0.75},0`,
@@ -28,14 +28,14 @@ export function HexagonBackground({
     `${width * 0.75},${height}`,
     `${width * 0.25},${height}`,
     `0,${height / 2}`,
-  ].join(" ")
+  ].join(" ");
 
   const hexagons = Array.from({ length: rows * columns }, (_, index) => {
-    const row = Math.floor(index / columns)
-    const column = index % columns
-    const x = column * horizontalStep + (row % 2 === 0 ? 0 : width / 2)
-    const y = row * verticalStep
-    const isAccent = (row + column) % 7 === 0 || (row * column) % 13 === 0
+    const row = Math.floor(index / columns);
+    const column = index % columns;
+    const x = column * horizontalStep + (row % 2 === 0 ? 0 : width / 2);
+    const y = row * verticalStep;
+    const isAccent = (row + column) % 7 === 0 || (row * column) % 13 === 0;
 
     return {
       key: `${row}-${column}`,
@@ -43,14 +43,14 @@ export function HexagonBackground({
       y,
       accent: isAccent,
       delay: ((row + column) % 6) * 0.6,
-    }
-  })
+    };
+  });
 
   return (
     <div
       className={cn(
         "pointer-events-none absolute inset-0 overflow-hidden [mask-image:radial-gradient(circle_at_center,black_38%,transparent_86%)]",
-        className
+        className,
       )}
       aria-hidden="true"
       {...props}
@@ -76,5 +76,5 @@ export function HexagonBackground({
         </g>
       </svg>
     </div>
-  )
+  );
 }

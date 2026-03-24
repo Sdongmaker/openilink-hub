@@ -20,36 +20,39 @@ import { TooltipProvider } from "./components/ui/tooltip";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
-    <TooltipProvider>
-    <BrowserRouter>
-      <Routes>
-        {/* Public */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/webhook-plugins" element={<PluginsPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        {/* Dashboard */}
-        <Route path="/dashboard" element={<Layout />}>
-          <Route index element={<BotsPage />} />
-          <Route path="bot/:id" element={<BotDetailPage />} />
-          <Route path="bot/:id/channel/:cid" element={<ChannelDetailPage />} />
-          {/* Webhook plugins */}
-          <Route path="webhook-plugins" element={<PluginsPage embedded tab="marketplace" />} />
-          <Route path="webhook-plugins/my" element={<PluginsPage embedded tab="my" />} />
-          <Route path="webhook-plugins/debug" element={<PluginDebugPage />} />
-          <Route path="webhook-plugins/review" element={<PluginsPage embedded tab="review" />} />
-          {/* Apps */}
-          <Route path="apps" element={<AppsPage />} />
-          <Route path="apps/:id" element={<AppDetailPage />} />
-          {/* Settings */}
-          <Route path="settings" element={<SettingsPage />} />
-          {/* Admin */}
-          <Route path="admin" element={<AdminPage tab="dashboard" />} />
-          <Route path="admin/users" element={<AdminPage tab="users" />} />
-          <Route path="admin/config" element={<AdminPage tab="config" />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-    </TooltipProvider>
+      <TooltipProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/webhook-plugins" element={<PluginsPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            {/* Dashboard */}
+            <Route path="/dashboard" element={<Layout />}>
+              <Route index element={<BotsPage />} />
+              <Route path="bot/:id" element={<BotDetailPage />} />
+              <Route path="bot/:id/channel/:cid" element={<ChannelDetailPage />} />
+              {/* Webhook plugins */}
+              <Route path="webhook-plugins" element={<PluginsPage embedded tab="marketplace" />} />
+              <Route path="webhook-plugins/my" element={<PluginsPage embedded tab="my" />} />
+              <Route path="webhook-plugins/debug" element={<PluginDebugPage />} />
+              <Route
+                path="webhook-plugins/review"
+                element={<PluginsPage embedded tab="review" />}
+              />
+              {/* Apps */}
+              <Route path="apps" element={<AppsPage />} />
+              <Route path="apps/:id" element={<AppDetailPage />} />
+              {/* Settings */}
+              <Route path="settings" element={<SettingsPage />} />
+              {/* Admin */}
+              <Route path="admin" element={<AdminPage tab="dashboard" />} />
+              <Route path="admin/users" element={<AdminPage tab="users" />} />
+              <Route path="admin/config" element={<AdminPage tab="config" />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
     </ThemeProvider>
-  </StrictMode>
+  </StrictMode>,
 );

@@ -1,8 +1,21 @@
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
-  LogOut, Github, Bot, LayoutDashboard, User, Bug, Store,
-  FolderOpen, ShieldCheck, BarChart3, Users, Settings, Blocks, Sun, Moon,
+  LogOut,
+  Github,
+  Bot,
+  LayoutDashboard,
+  User,
+  Bug,
+  Store,
+  FolderOpen,
+  ShieldCheck,
+  BarChart3,
+  Users,
+  Settings,
+  Blocks,
+  Sun,
+  Moon,
   ChevronsUpDown,
 } from "lucide-react";
 import { api } from "../lib/api";
@@ -40,7 +53,10 @@ export function Layout() {
   const { resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
-    api.me().then(setUser).catch(() => navigate("/login", { replace: true }));
+    api
+      .me()
+      .then(setUser)
+      .catch(() => navigate("/login", { replace: true }));
   }, []);
 
   if (!user) return null;
@@ -66,7 +82,6 @@ export function Layout() {
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
-
         {/* Logo */}
         <SidebarHeader>
           <SidebarMenu>
@@ -95,7 +110,11 @@ export function Layout() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/dashboard/apps")} tooltip="App 管理">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive("/dashboard/apps")}
+                    tooltip="App 管理"
+                  >
                     <Link to="/dashboard/apps">
                       <Blocks />
                       <span>App 管理</span>
@@ -114,7 +133,11 @@ export function Layout() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/dashboard/webhook-plugins")} tooltip="市场">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive("/dashboard/webhook-plugins")}
+                    tooltip="市场"
+                  >
                     <Link to="/dashboard/webhook-plugins">
                       <Store />
                       <span>市场</span>
@@ -122,7 +145,11 @@ export function Layout() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/dashboard/webhook-plugins/my")} tooltip="我的插件">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive("/dashboard/webhook-plugins/my")}
+                    tooltip="我的插件"
+                  >
                     <Link to="/dashboard/webhook-plugins/my">
                       <FolderOpen />
                       <span>我的插件</span>
@@ -130,7 +157,11 @@ export function Layout() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/dashboard/webhook-plugins/debug")} tooltip="调试器">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive("/dashboard/webhook-plugins/debug")}
+                    tooltip="调试器"
+                  >
                     <Link to="/dashboard/webhook-plugins/debug">
                       <Bug />
                       <span>调试器</span>
@@ -139,7 +170,11 @@ export function Layout() {
                 </SidebarMenuItem>
                 {isAdmin && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/dashboard/webhook-plugins/review")} tooltip="审核">
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive("/dashboard/webhook-plugins/review")}
+                      tooltip="审核"
+                    >
                       <Link to="/dashboard/webhook-plugins/review">
                         <ShieldCheck />
                         <span>审核</span>
@@ -160,7 +195,11 @@ export function Layout() {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive("/dashboard/admin")} tooltip="概览">
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive("/dashboard/admin")}
+                        tooltip="概览"
+                      >
                         <Link to="/dashboard/admin">
                           <BarChart3 />
                           <span>概览</span>
@@ -168,7 +207,11 @@ export function Layout() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive("/dashboard/admin/users")} tooltip="用户管理">
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive("/dashboard/admin/users")}
+                        tooltip="用户管理"
+                      >
                         <Link to="/dashboard/admin/users">
                           <Users />
                           <span>用户管理</span>
@@ -176,7 +219,11 @@ export function Layout() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive("/dashboard/admin/config")} tooltip="系统配置">
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive("/dashboard/admin/config")}
+                        tooltip="系统配置"
+                      >
                         <Link to="/dashboard/admin/config">
                           <Settings />
                           <span>系统配置</span>
@@ -184,7 +231,11 @@ export function Layout() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive("/dashboard/admin/apps")} tooltip="App 管理">
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive("/dashboard/admin/apps")}
+                        tooltip="App 管理"
+                      >
                         <Link to="/dashboard/admin/apps">
                           <Blocks />
                           <span>App 管理</span>
@@ -202,7 +253,11 @@ export function Layout() {
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={isActive("/dashboard/settings")} tooltip="账号设置">
+              <SidebarMenuButton
+                asChild
+                isActive={isActive("/dashboard/settings")}
+                tooltip="账号设置"
+              >
                 <Link to="/dashboard/settings">
                   <User />
                   <span>账号设置</span>
