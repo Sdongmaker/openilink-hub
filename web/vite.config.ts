@@ -23,4 +23,7 @@ export default defineConfig({
     outDir: "../internal/web/dist",
     emptyOutDir: true,
   },
+  staged: {
+    "*.{js,ts,tsx,vue,svelte}": "vp check --fix",
+  },
 });
