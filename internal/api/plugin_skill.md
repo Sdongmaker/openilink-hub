@@ -1,6 +1,6 @@
-# OpenILink Hub — Webhook Plugin Development Skill
+# OpeniLink Hub — Webhook Plugin Development Skill
 
-> This document is designed for AI agents and developers to understand how to write webhook plugins for the OpenILink Hub plugin marketplace.
+> This document is designed for AI agents and developers to understand how to write webhook plugins for the OpeniLink Hub plugin marketplace.
 
 ## What is a Webhook Plugin?
 
@@ -371,7 +371,7 @@ Write your plugin following the format above. Before submitting, verify:
 **Option A: Submit via GitHub URL (recommended)**
 
 1. Push your plugin to GitHub
-2. Go to the OpenILink Hub plugin marketplace → "Submit Plugin" tab
+2. Go to the OpeniLink Hub plugin marketplace → "Submit Plugin" tab
 3. Paste the GitHub blob URL, e.g.:
    ```
    https://github.com/yourname/my-webhook-plugin/blob/main/plugin.js
