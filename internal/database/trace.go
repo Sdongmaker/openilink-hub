@@ -139,14 +139,18 @@ func (t *Tracer) Flush() {
 	}
 }
 
-// AppendSpan adds a span to an existing trace (for async operations).
+// AppendSpan adds a span to an existing trace as a child of the root span.
 func (db *DB) AppendSpan(traceID, botID, name, kind, statusCode, statusMessage string, attrs map[string]any) error {
+	// Find root span to use as parent
+	var parentSpanID string
+	_ = db.QueryRow("SELECT span_id FROM trace_spans WHERE trace_id=$1 AND parent_span_id='' LIMIT 1", traceID).Scan(&parentSpanID)
+
 	attrsJSON, _ := json.Marshal(attrs)
 	now := time.Now().UnixMilli()
 	_, err := db.Exec(`INSERT INTO trace_spans
 		(trace_id, span_id, parent_span_id, name, kind, status_code, status_message, start_time, end_time, attributes, events, bot_id)
-		VALUES ($1,$2,'',$3,$4,$5,$6,$7,$7,$8,'[]',$9)`,
-		traceID, genSpanID(), name, kind, statusCode, statusMessage, now, attrsJSON, botID)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,'[]',$10)`,
+		traceID, genSpanID(), parentSpanID, name, kind, statusCode, statusMessage, now, attrsJSON, botID)
 	return err
 }
 
