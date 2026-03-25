@@ -87,9 +87,11 @@ jobs:
           path: darwin-archives/
           merge-multiple: true
 
-      # Stage downloaded artifacts so git sees a clean state
-      - name: Stage artifacts for clean git state
-        run: git add -f internal/web/dist/ darwin-archives/
+      # Commit downloaded artifacts so GoReleaser sees clean git state
+      - name: Commit artifacts for clean git state
+        run: |
+          git add -f internal/web/dist/ darwin-archives/
+          git commit -m "ci: add build artifacts" --no-verify
 
       - uses: actions/setup-go@v6
         with:
