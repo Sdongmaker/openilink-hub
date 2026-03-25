@@ -1,6 +1,6 @@
 <div align="center">
 
-# OpeniLink Hub
+<img src="./logo.svg" alt="OpeniLink Hub" width="360" />
 
 **微信 ClawBot iLink 协议的开源消息管理平台**<br>
 **Open-source message management platform for WeChat ClawBot (iLink protocol)**
