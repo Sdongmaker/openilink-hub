@@ -37,7 +37,7 @@ jobs:
       matrix:
         include:
           - goarch: amd64
-            runner: macos-13
+            runner: macos-latest
           - goarch: arm64
             runner: macos-latest
     runs-on: ${{ matrix.runner }}
