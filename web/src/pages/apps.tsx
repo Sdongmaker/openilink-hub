@@ -16,13 +16,14 @@ import {
   Download,
   ArrowRight,
   Loader2,
-  Shield,
   Zap,
   Search,
-  CheckCircle2,
+  Eye,
+  ExternalLink,
   Rocket,
 } from "lucide-react";
 import { api } from "../lib/api";
+import { SCOPE_DESCRIPTIONS } from "../lib/constants";
 import {
   Tabs,
   TabsContent,
@@ -39,12 +40,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-
-function AppIcon({ icon, iconUrl, size = "h-12 w-12" }: { icon?: string; iconUrl?: string; size?: string }) {
-  if (iconUrl) return <img src={iconUrl} alt="" className={`${size} rounded-2xl object-cover border-2 border-background shadow-sm`} />;
-  if (icon) return <div className={`${size} rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-center text-2xl shadow-inner`}>{icon}</div>;
-  return <div className={`${size} rounded-2xl bg-muted flex items-center justify-center border shadow-inner`}><Blocks className="h-6 w-6 text-muted-foreground/30" /></div>;
-}
+import { AppIcon } from "../components/app-icon";
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
@@ -93,11 +89,16 @@ function MarketplaceTab() {
   const [apps, setApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [installApp, setInstallApp] = useState<any>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     setLoading(true);
     api.listApps({ listed: true }).then(l => setApps(l || [])).finally(() => setLoading(false));
   }, []);
+
+  const filtered = apps.filter(a =>
+    !search || a.name.toLowerCase().includes(search.toLowerCase()) || (a.slug || "").toLowerCase().includes(search.toLowerCase())
+  );
 
   if (loading) return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -109,11 +110,11 @@ function MarketplaceTab() {
     <div className="space-y-6">
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="搜索应用..." className="pl-10 h-10 rounded-full bg-card shadow-sm border-border/50" />
+        <Input placeholder="搜索应用..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-10 rounded-full bg-card shadow-sm border-border/50" aria-label="搜索应用" />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {apps.map((app) => (
+        {filtered.map((app) => (
           <Card key={app.id} className="group relative overflow-hidden rounded-[2rem] border-border/50 bg-card/50 transition-all hover:shadow-2xl hover:-translate-y-1">
             <CardHeader className="pb-4">
               <div className="flex items-start gap-4">
@@ -137,23 +138,25 @@ function MarketplaceTab() {
               </p>
             </CardContent>
             <CardFooter className="bg-muted/30 pt-4 flex justify-between items-center px-6">
-              <div className="flex items-center gap-3">
-                 <div className="flex -space-x-2">
-                    {[1, 2].map(i => <div key={i} className="h-6 w-6 rounded-full border-2 border-background bg-muted flex items-center justify-center"><Zap className="h-3 w-3 text-yellow-500" /></div>)}
-                 </div>
-                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Verified</span>
-              </div>
+              <span className="text-[10px] font-bold text-muted-foreground">{app.owner_name || app.slug}</span>
               <Button size="sm" onClick={() => setInstallApp(app)} className="h-8 rounded-full px-4 gap-1.5 font-bold text-xs shadow-lg shadow-primary/10">
                 安装 <Download className="h-3 w-3" />
               </Button>
             </CardFooter>
           </Card>
         ))}
+        {filtered.length === 0 && apps.length > 0 && (
+          <p className="col-span-full text-center text-sm text-muted-foreground py-8">没有匹配的应用</p>
+        )}
       </div>
 
       {installApp && (
         <Dialog open={!!installApp} onOpenChange={(o: boolean) => !o && setInstallApp(null)}>
-          <DialogContent className="sm:max-w-lg rounded-[2rem]">
+          <DialogContent className="sm:max-w-2xl rounded-[2rem]">
+            <DialogHeader className="sr-only">
+              <DialogTitle>安装 {installApp.name}</DialogTitle>
+              <DialogDescription>查看权限并确认安装。</DialogDescription>
+            </DialogHeader>
             <InstallFlowDialog app={installApp} onClose={() => setInstallApp(null)} />
           </DialogContent>
         </Dialog>
@@ -182,7 +185,7 @@ function InstallFlowDialog({ app, onClose }: { app: any; onClose: () => void }) 
     setSaving(true);
     try {
       await api.installApp(app.id, { bot_id: botId, handle: handle.trim() || undefined });
-      toast({ title: "安装成功", description: `已安装到 ${app.name}。` });
+      toast({ title: "安装成功", description: `已安装 ${app.name}。` });
       onClose();
     } catch (e: any) {
       toast({ variant: "destructive", title: "安装失败", description: e.message });
@@ -190,60 +193,120 @@ function InstallFlowDialog({ app, onClose }: { app: any; onClose: () => void }) 
     setSaving(false);
   }
 
-  return (
-    <div className="space-y-6 py-2">
-      <DialogHeader>
-        <div className="flex items-center gap-4 mb-2">
-          <AppIcon icon={app.icon} iconUrl={app.icon_url} />
-          <div className="text-left">
-            <DialogTitle className="text-2xl font-bold">{app.name}</DialogTitle>
-            <DialogDescription className="text-sm">选择要安装到的账号。</DialogDescription>
-          </div>
-        </div>
-      </DialogHeader>
+  const tools = (app.tools || []) as any[];
+  const events = (app.events || []) as string[];
+  const scopes = (app.scopes || []) as string[];
+  const readScopes = scopes.filter(s => s.includes("read"));
+  const writeScopes = scopes.filter(s => !s.includes("read"));
 
-      <div className="space-y-6">
-        <div className="p-4 rounded-2xl bg-muted/30 border border-border/50 space-y-4">
-           <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-             <Shield className="h-3 w-3" /> 请求权限与功能
-           </h4>
-           <div className="space-y-3">
-              {app.tools?.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {app.tools.map((t: any) => (
-                    <Badge key={t.name} variant="secondary" className="bg-background font-mono text-[10px] lowercase">/{t.command || t.name}</Badge>
+  return (
+    <div className="py-2">
+      <div className="flex flex-col sm:flex-row gap-6">
+        {/* Left: App identity */}
+        <div className="sm:w-2/5 space-y-4 sm:border-r sm:pr-6">
+          <div className="flex items-center gap-3">
+            <AppIcon icon={app.icon} iconUrl={app.icon_url} size="h-14 w-14" />
+            <div>
+              <h3 className="text-lg font-bold">{app.name}</h3>
+              <p className="text-xs text-muted-foreground font-mono">{app.slug}</p>
+            </div>
+          </div>
+          {app.description && (
+            <p className="text-sm text-muted-foreground leading-relaxed">{app.description}</p>
+          )}
+          {app.homepage && (
+            <a href={app.homepage} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+              <ExternalLink className="h-3 w-3" /> 应用主页
+            </a>
+          )}
+        </div>
+
+        {/* Right: Permissions + config */}
+        <div className="sm:w-3/5 space-y-5">
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">此应用将能够：</h4>
+
+            {readScopes.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">查看</p>
+                {readScopes.map(s => (
+                  <div key={s} className="flex items-start gap-2 text-sm">
+                    <Eye className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
+                    <span>{SCOPE_DESCRIPTIONS[s] || s}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {writeScopes.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">操作</p>
+                {writeScopes.map(s => (
+                  <div key={s} className="flex items-start gap-2 text-sm">
+                    <Zap className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                    <span>{SCOPE_DESCRIPTIONS[s] || s}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tools.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">命令</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tools.map((t: any) => (
+                    <Badge key={t.name} variant="secondary" className="font-mono text-xs">/{t.command || t.name}</Badge>
                   ))}
                 </div>
-              )}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                <span>允许该应用接收特定提及消息并执行响应。</span>
               </div>
-           </div>
-        </div>
+            )}
 
-        <div className="space-y-4">
-           <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">选择账号</label>
-              <select value={botId} onChange={e => setBotId(e.target.value)} className="w-full h-11 px-4 rounded-xl border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                {bots.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-           </div>
-           <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Handle（必填）</label>
-              <Input value={handle} onChange={e => setHandle(e.target.value)} className="h-11 rounded-xl font-mono" placeholder="如 notify-prod" />
-              <p className="text-[10px] text-muted-foreground">用户发送 @{handle || "handle"} 触发此应用</p>
-           </div>
+            {events.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">事件订阅</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {events.map(e => (
+                    <Badge key={e} variant="outline" className="font-mono text-[10px]">{e}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {scopes.length === 0 && tools.length === 0 && events.length === 0 && (
+              <p className="text-sm text-muted-foreground">接收 @mention 消息并执行响应。</p>
+            )}
+          </div>
+
+          <div className="space-y-3 pt-2 border-t">
+            {bots.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">请先创建一个账号，然后再安装应用。</p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <label htmlFor="mp-install-bot" className="text-xs font-medium">安装到账号</label>
+                  <select id="mp-install-bot" value={botId} onChange={e => setBotId(e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20">
+                    {bots.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="mp-install-handle" className="text-xs font-medium">Handle</label>
+                  <Input id="mp-install-handle" value={handle} onChange={e => setHandle(e.target.value)} className="h-9 font-mono" placeholder="如 notify-prod" />
+                  <p className="text-[10px] text-muted-foreground">用户发送 @{handle || "handle"} 触发此应用</p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <DialogFooter className="pt-4">
-        <Button variant="ghost" onClick={onClose} className="rounded-full">取消</Button>
-        <Button onClick={handleInstall} disabled={saving || !botId || !handle.trim()} className="rounded-full px-8 gap-2 shadow-lg shadow-primary/20">
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          安装
+      <div className="flex justify-end gap-2 pt-4 mt-4 border-t">
+        <Button variant="ghost" onClick={onClose}>取消</Button>
+        <Button onClick={handleInstall} disabled={saving || !botId || !handle.trim()} className="px-6">
+          {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+          允许并安装
         </Button>
-      </DialogFooter>
+      </div>
     </div>
   );
 }
