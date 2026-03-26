@@ -63,6 +63,13 @@ export function InstallAppPage() {
         scopes: app.scopes || [],
       });
 
+      // If app requires OAuth setup, redirect to the setup URL
+      if (result?.needs_oauth && result?.oauth_setup_url) {
+        const setupUrl = `${result.oauth_setup_url}?hub=${encodeURIComponent(window.location.origin)}&app_id=${encodeURIComponent(appId!)}&bot_id=${encodeURIComponent(botId!)}&state=${encodeURIComponent(result.id)}`;
+        window.location.href = setupUrl;
+        return;
+      }
+
       const installationId = result?.id || result?.installation_id;
 
       // If config_schema exists and form was filled, save config
@@ -80,7 +87,7 @@ export function InstallAppPage() {
       }
 
       toast({ title: "安装成功" });
-      navigate(`/dashboard/accounts/${botId}/apps/${installationId}`);
+      navigate(`/dashboard/accounts/${botId}/app-installations/${installationId}`);
     } catch (e: any) {
       toast({ variant: "destructive", title: "安装失败", description: e.message });
     } finally {

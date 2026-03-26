@@ -77,17 +77,26 @@ func (s *Server) handleInstallApp(w http.ResponseWriter, r *http.Request) {
 	if app.OAuthSetupURL == "" && app.OAuthRedirectURL != "" {
 		slog.Info("install: notifying app", "inst", inst.ID, "oauth_redirect_url", app.OAuthRedirectURL)
 		s.notifyAppInstalled(app, inst)
-		// Re-read installation to get updated webhook_url
 		if updated, err := s.Store.GetInstallation(inst.ID); err == nil {
 			inst = updated
-			slog.Info("install: after notify", "inst", inst.ID, "webhook_url", inst.AppWebhookURL)
 		}
-	} else {
-		slog.Info("install: no oauth_redirect_url, skipping auto-notify", "inst", inst.ID, "oauth_setup_url", app.OAuthSetupURL, "oauth_redirect_url", app.OAuthRedirectURL)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+
+	// If app has OAuth setup URL, tell the frontend to redirect
+	if app.OAuthSetupURL != "" {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":              inst.ID,
+			"app_id":          inst.AppID,
+			"app_token":       inst.AppToken,
+			"bot_id":          inst.BotID,
+			"oauth_setup_url": app.OAuthSetupURL,
+			"needs_oauth":     true,
+		})
+		return
+	}
 	json.NewEncoder(w).Encode(inst)
 }
 
@@ -556,7 +565,7 @@ func (s *Server) handleUnifiedInstall(w http.ResponseWriter, r *http.Request) {
 		inst.Scopes = scopes
 	}
 
-	// Auto-notify for apps with redirect URL
+	// Auto-notify for apps with redirect URL (no setup URL)
 	if app.OAuthSetupURL == "" && app.OAuthRedirectURL != "" {
 		s.notifyAppInstalled(app, inst)
 		if updated, _ := s.Store.GetInstallation(inst.ID); updated != nil {
@@ -566,6 +575,19 @@ func (s *Server) handleUnifiedInstall(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+
+	// If app has OAuth setup URL, tell the frontend to redirect
+	if app.OAuthSetupURL != "" {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":              inst.ID,
+			"app_id":          inst.AppID,
+			"app_token":       inst.AppToken,
+			"bot_id":          inst.BotID,
+			"oauth_setup_url": app.OAuthSetupURL,
+			"needs_oauth":     true,
+		})
+		return
+	}
 	json.NewEncoder(w).Encode(inst)
 }
 
