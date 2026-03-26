@@ -51,7 +51,7 @@ type DeliveryResult struct {
 	ResponseBody string `json:"-"`
 }
 
-// eventEnvelope is the JSON structure POSTed to the app's request_url.
+// eventEnvelope is the JSON structure POSTed to the app's webhook_url.
 type eventEnvelope struct {
 	V              int            `json:"v"`
 	Type           string         `json:"type"`
@@ -124,11 +124,11 @@ func (d *Dispatcher) store() appStore {
 	return d.Store
 }
 
-// DeliverEvent posts a signed event payload to the installation's request_url
+// DeliverEvent posts a signed event payload to the installation's webhook_url
 // and logs the delivery attempt. Returns the delivery result or an error.
 func (d *Dispatcher) DeliverEvent(inst *store.AppInstallation, event *Event) (*DeliveryResult, error) {
-	if inst.AppRequestURL == "" {
-		return nil, fmt.Errorf("installation %s has no request_url configured", inst.ID)
+	if inst.AppWebhookURL == "" {
+		return nil, fmt.Errorf("installation %s has no webhook_url configured", inst.ID)
 	}
 
 	traceID := event.TraceID
@@ -166,10 +166,10 @@ func (d *Dispatcher) DeliverEvent(inst *store.AppInstallation, event *Event) (*D
 
 	// Compute signature.
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-	signature := computeSignature(inst.AppSigningSecret, timestamp, body)
+	signature := computeSignature(inst.AppWebhookSecret, timestamp, body)
 
 	// Build request.
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, inst.AppRequestURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, inst.AppWebhookURL, bytes.NewReader(body))
 	if err != nil {
 		d.markFailed(logID, err.Error(), 0, 0)
 		return nil, fmt.Errorf("build request: %w", err)
@@ -188,7 +188,7 @@ func (d *Dispatcher) DeliverEvent(inst *store.AppInstallation, event *Event) (*D
 
 	if err != nil {
 		d.markFailed(logID, err.Error(), 0, durationMs)
-		return nil, fmt.Errorf("http request to %s failed: %w", inst.AppRequestURL, err)
+		return nil, fmt.Errorf("http request to %s failed: %w", inst.AppWebhookURL, err)
 	}
 	defer resp.Body.Close()
 

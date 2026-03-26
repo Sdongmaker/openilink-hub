@@ -22,6 +22,7 @@ import (
 	"github.com/openilink/openilink-hub/internal/store"
 	"github.com/openilink/openilink-hub/internal/store/postgres"
 	"github.com/openilink/openilink-hub/internal/store/sqlite"
+	"github.com/openilink/openilink-hub/internal/registry"
 	"github.com/openilink/openilink-hub/internal/storage"
 
 	// Register providers
@@ -96,6 +97,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Registry client
+	regClient := registry.NewClient(0)
+	registries, err := s.ListRegistries()
+	if err != nil {
+		slog.Warn("failed to load registry sources", "err", err)
+	} else {
+		enabledCount := 0
+		for _, reg := range registries {
+			if reg.Enabled {
+				regClient.AddSource(reg.Name, reg.URL)
+				enabledCount++
+			}
+		}
+		if enabledCount > 0 {
+			slog.Info("registry sources loaded", "count", enabledCount)
+		}
+	}
+
 	// Server components
 	srv := &api.Server{
 		Store:        s,
@@ -103,6 +122,7 @@ func main() {
 		SessionStore: auth.NewSessionStore(),
 		Config:       cfg,
 		OAuthStates:  api.SetupOAuth(cfg),
+		Registry:     regClient,
 	}
 
 	// Storage (optional)

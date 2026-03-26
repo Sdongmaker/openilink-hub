@@ -47,7 +47,7 @@ func (d *Dispatcher) MatchHandle(botID, handle string) (*store.AppInstallation, 
 	if err != nil {
 		return nil, err
 	}
-	if !inst.Enabled || inst.AppRequestURL == "" {
+	if !inst.Enabled {
 		return nil, nil
 	}
 	return inst, nil
@@ -71,7 +71,7 @@ func (d *Dispatcher) MatchCommand(botID string, content string) ([]store.AppInst
 
 	var matched []store.AppInstallation
 	for _, inst := range installations {
-		if !inst.Enabled || inst.AppRequestURL == "" {
+		if !inst.Enabled {
 			continue
 		}
 
@@ -101,7 +101,7 @@ func (d *Dispatcher) MatchEvent(botID string, eventType string) ([]store.AppInst
 
 	var matched []store.AppInstallation
 	for _, inst := range installations {
-		if !inst.Enabled || inst.AppRequestURL == "" {
+		if !inst.Enabled {
 			continue
 		}
 
@@ -110,6 +110,13 @@ func (d *Dispatcher) MatchEvent(botID string, eventType string) ([]store.AppInst
 			slog.Error("failed to get app for event matching",
 				"app_id", inst.AppID, "err", err)
 			continue
+		}
+
+		// Installation (or app) must have message:read scope to receive message events
+		if strings.HasPrefix(eventType, "message.") || eventType == "message" {
+			if !instOrAppHasScope(&inst, app, "message:read") {
+				continue
+			}
 		}
 
 		if appSubscribesToEvent(app, eventType) {
@@ -181,6 +188,42 @@ func appHasCommand(app *store.App, commandName string) bool {
 			continue
 		}
 		if strings.ToLower(tool.Command) == strings.ToLower(commandName) {
+			return true
+		}
+	}
+	return false
+}
+
+// instOrAppHasScope checks if the installation has the scope granted.
+// If installation scopes are empty (default), falls back to app-level scopes.
+func instOrAppHasScope(inst *store.AppInstallation, app *store.App, scope string) bool {
+	// Check installation-level scopes first
+	if len(inst.Scopes) > 0 && string(inst.Scopes) != "[]" {
+		var scopes []string
+		if err := json.Unmarshal(inst.Scopes, &scopes); err == nil {
+			for _, s := range scopes {
+				if s == scope {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	// Fall back to app-level scopes
+	return appHasScope(app, scope)
+}
+
+// appHasScope checks whether an app declares the given scope.
+func appHasScope(app *store.App, scope string) bool {
+	if app == nil || len(app.Scopes) == 0 {
+		return false
+	}
+	var scopes []string
+	if err := json.Unmarshal(app.Scopes, &scopes); err != nil {
+		return false
+	}
+	for _, s := range scopes {
+		if s == scope {
 			return true
 		}
 	}

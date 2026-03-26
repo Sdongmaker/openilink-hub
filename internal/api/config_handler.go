@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -178,6 +179,38 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"ai":      globalAI["ai.api_key"] != "",
 		"storage": s.Config.StorageEndpoint != "",
 	})
+}
+
+// GET /api/admin/config/registry — get registry config
+func (s *Server) handleGetRegistryConfig(w http.ResponseWriter, r *http.Request) {
+	enabled, err := s.Store.GetConfig("registry.enabled")
+	if err != nil {
+		slog.Error("failed to get registry config", "err", err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"enabled": enabled,
+	})
+}
+
+// PUT /api/admin/config/registry — set registry config
+func (s *Server) handleSetRegistryConfig(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Enabled string `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.Enabled != "true" && req.Enabled != "false" {
+		jsonError(w, "enabled must be 'true' or 'false'", http.StatusBadRequest)
+		return
+	}
+	if err := s.Store.SetConfig("registry.enabled", req.Enabled); err != nil {
+		jsonError(w, "save failed", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w)
 }
 
 func maskSecret(s string) string {
