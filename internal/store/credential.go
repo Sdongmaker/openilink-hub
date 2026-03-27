@@ -7,6 +7,8 @@ type Credential struct {
 	AttestationType string
 	Transport       string
 	SignCount       uint32
+	BackupEligible  bool
+	BackupState     bool
 	CreatedAt       int64
 }
 

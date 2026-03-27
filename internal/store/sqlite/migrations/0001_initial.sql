@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS credentials (
     attestation_type TEXT NOT NULL DEFAULT '',
     transport        TEXT NOT NULL DEFAULT '[]',
     sign_count       INTEGER NOT NULL DEFAULT 0,
+    backup_eligible  INTEGER NOT NULL DEFAULT 0,
+    backup_state     INTEGER NOT NULL DEFAULT 0,
     created_at       INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_credentials_user ON credentials(user_id);

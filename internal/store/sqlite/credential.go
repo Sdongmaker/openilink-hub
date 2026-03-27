@@ -4,18 +4,18 @@ import "github.com/openilink/openilink-hub/internal/store"
 
 func (db *DB) SaveCredential(c *store.Credential) error {
 	_, err := db.Exec(
-		`INSERT INTO credentials (id, user_id, public_key, attestation_type, transport, sign_count)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT (id) DO UPDATE SET user_id = ?, public_key = ?, attestation_type = ?, transport = ?, sign_count = ?, created_at = unixepoch()`,
-		c.ID, c.UserID, c.PublicKey, c.AttestationType, c.Transport, c.SignCount,
-		c.UserID, c.PublicKey, c.AttestationType, c.Transport, c.SignCount,
+		`INSERT INTO credentials (id, user_id, public_key, attestation_type, transport, sign_count, backup_eligible, backup_state)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (id) DO UPDATE SET user_id = ?, public_key = ?, attestation_type = ?, transport = ?, sign_count = ?, backup_eligible = ?, backup_state = ?, created_at = unixepoch()`,
+		c.ID, c.UserID, c.PublicKey, c.AttestationType, c.Transport, c.SignCount, c.BackupEligible, c.BackupState,
+		c.UserID, c.PublicKey, c.AttestationType, c.Transport, c.SignCount, c.BackupEligible, c.BackupState,
 	)
 	return err
 }
 
 func (db *DB) GetCredentialsByUserID(userID string) ([]store.Credential, error) {
 	rows, err := db.Query(
-		"SELECT id, user_id, public_key, attestation_type, transport, sign_count, created_at FROM credentials WHERE user_id = ?",
+		"SELECT id, user_id, public_key, attestation_type, transport, sign_count, backup_eligible, backup_state, created_at FROM credentials WHERE user_id = ?",
 		userID,
 	)
 	if err != nil {
@@ -25,7 +25,7 @@ func (db *DB) GetCredentialsByUserID(userID string) ([]store.Credential, error) 
 	var creds []store.Credential
 	for rows.Next() {
 		var c store.Credential
-		if err := rows.Scan(&c.ID, &c.UserID, &c.PublicKey, &c.AttestationType, &c.Transport, &c.SignCount, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.PublicKey, &c.AttestationType, &c.Transport, &c.SignCount, &c.BackupEligible, &c.BackupState, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		creds = append(creds, c)

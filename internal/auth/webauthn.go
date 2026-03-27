@@ -76,6 +76,10 @@ func LoadWebAuthnUser(s store.CredentialStore, user *store.User) (*WebAuthnUser,
 			PublicKey:       dc.PublicKey,
 			AttestationType: dc.AttestationType,
 			Transport:       transports,
+			Flags: webauthn.CredentialFlags{
+				BackupEligible: dc.BackupEligible,
+				BackupState:    dc.BackupState,
+			},
 			Authenticator: webauthn.Authenticator{
 				SignCount: dc.SignCount,
 			},

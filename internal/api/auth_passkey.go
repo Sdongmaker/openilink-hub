@@ -93,6 +93,8 @@ func (s *Server) handleRegisterFinish(w http.ResponseWriter, r *http.Request) {
 		AttestationType: cred.AttestationType,
 		Transport:       string(transportsJSON),
 		SignCount:       cred.Authenticator.SignCount,
+		BackupEligible:  cred.Flags.BackupEligible,
+		BackupState:     cred.Flags.BackupState,
 	}); err != nil {
 		jsonError(w, "save credential failed", http.StatusInternalServerError)
 		return
@@ -272,6 +274,8 @@ func (s *Server) handlePasskeyBindFinish(w http.ResponseWriter, r *http.Request)
 		AttestationType: cred.AttestationType,
 		Transport:       string(transportsJSON),
 		SignCount:       cred.Authenticator.SignCount,
+		BackupEligible:  cred.Flags.BackupEligible,
+		BackupState:     cred.Flags.BackupState,
 	}); err != nil {
 		jsonError(w, "save credential failed", http.StatusInternalServerError)
 		return
