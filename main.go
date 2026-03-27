@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
+	appdelivery "github.com/openilink/openilink-hub/internal/app"
 	"github.com/openilink/openilink-hub/internal/api"
 	"github.com/openilink/openilink-hub/internal/auth"
 	"github.com/openilink/openilink-hub/internal/bot"
@@ -160,9 +161,10 @@ func main() {
 	}
 
 	hub := relay.NewHub(srv.SetupUpstreamHandler())
+	appDisp := appdelivery.NewDispatcher(s)
 	sinks := []sink.Sink{
 		&sink.WS{Hub: hub},
-		&sink.AI{Store: s},
+		&sink.AI{Store: s, AppDisp: appDisp},
 		&sink.Webhook{Store: s},
 	}
 	mgr := bot.NewManager(s, hub, sinks, objStore, cfg.RPOrigin)

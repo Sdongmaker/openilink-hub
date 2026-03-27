@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/openilink/openilink-hub/internal/ai"
+	appdelivery "github.com/openilink/openilink-hub/internal/app"
 	"github.com/openilink/openilink-hub/internal/provider"
 	"github.com/openilink/openilink-hub/internal/store"
 )
@@ -15,9 +16,10 @@ import (
 const typingTimeout = 30 * time.Second
 
 // AI calls an OpenAI-compatible chat completion API and sends the reply
-// back through the bot. It also manages typing indicators.
+// back through the bot. Supports tool calling via installed App tools.
 type AI struct {
-	Store store.Store
+	Store      store.Store
+	AppDisp    *appdelivery.Dispatcher
 }
 
 func (s *AI) Name() string { return "ai" }
@@ -62,20 +64,58 @@ func (s *AI) reply(d Delivery) {
 		}
 	}
 
-	reply, err := ai.Complete(ctx, cfg, s.Store, d.Channel.ID, sender, d.Content)
-
-	if typingTicket != "" {
-		d.Provider.SendTyping(ctx, sender, typingTicket, false)
+	// Collect tools from installed apps
+	tools := s.collectTools(d.BotDBID)
+	if span != nil && len(tools) > 0 {
+		var names []string
+		for _, t := range tools {
+			names = append(names, t.Function.Name)
+		}
+		span.SetAttr("ai.tools_count", len(tools))
 	}
 
+	// Build messages and do initial completion
+	messages := ai.BuildMessages(cfg, s.Store, d.Channel.ID, sender, d.Content)
+	result, err := ai.Complete(ctx, cfg, s.Store, d.Channel.ID, sender, d.Content, tools)
 	if err != nil {
 		slog.Error("ai completion failed", "bot", d.BotDBID, "err", err)
 		if span != nil {
 			span.SetStatus(store.StatusError, err.Error())
 			span.End()
 		}
+		s.stopTyping(d, typingTicket)
 		return
 	}
+
+	// Tool call loop
+	for round := 0; round < ai.MaxToolRounds && len(result.ToolCalls) > 0; round++ {
+		// Record assistant's tool_calls in messages
+		messages = ai.AppendAssistantToolCalls(messages, result.ToolCalls)
+
+		// Execute each tool call
+		var toolResults []ai.ToolCallResult
+		for _, tc := range result.ToolCalls {
+			toolResult := s.executeToolCall(ctx, d, tc, span)
+			toolResults = append(toolResults, toolResult)
+		}
+
+		// Continue conversation with tool results
+		var nextErr error
+		result, messages, nextErr = ai.ContinueWithToolResults(ctx, cfg, messages, toolResults, tools)
+		if nextErr != nil {
+			slog.Error("ai continuation failed", "bot", d.BotDBID, "round", round+1, "err", nextErr)
+			if span != nil {
+				span.SetStatus(store.StatusError, nextErr.Error())
+				span.End()
+			}
+			s.stopTyping(d, typingTicket)
+			return
+		}
+	}
+
+	s.stopTyping(d, typingTicket)
+
+	reply := result.Content
 	if reply == "" {
 		if span != nil {
 			span.SetAttr("reply.content", "(empty)")
@@ -110,9 +150,132 @@ func (s *AI) reply(d Delivery) {
 		BotID:       d.BotDBID,
 		Direction:   "outbound",
 		ToUserID:    sender,
-		MessageType: 2, // BOT
+		MessageType: 2,
 		ItemList:    itemList,
 	})
+}
+
+// collectTools gathers all tools from enabled app installations on this bot.
+func (s *AI) collectTools(botID string) []ai.Tool {
+	if s.AppDisp == nil {
+		return nil
+	}
+	installations, err := s.Store.ListInstallationsByBot(botID)
+	if err != nil {
+		slog.Error("ai: list installations failed", "bot", botID, "err", err)
+		return nil
+	}
+
+	var tools []ai.Tool
+	for _, inst := range installations {
+		if !inst.Enabled {
+			continue
+		}
+		app, err := s.Store.GetApp(inst.AppID)
+		if err != nil {
+			continue
+		}
+		var appTools []store.AppTool
+		json.Unmarshal(app.Tools, &appTools)
+		for _, t := range appTools {
+			if t.Name == "" {
+				continue
+			}
+			params := t.Parameters
+			if len(params) == 0 {
+				params = json.RawMessage(`{"type":"object","properties":{}}`)
+			}
+			tools = append(tools, ai.Tool{
+				Type: "function",
+				Function: ai.ToolFunction{
+					Name:        inst.Handle + "." + t.Name,
+					Description: fmt.Sprintf("[%s] %s", inst.AppName, t.Description),
+					Parameters:  params,
+				},
+			})
+		}
+	}
+	return tools
+}
+
+// executeToolCall delivers a tool call to the corresponding app and returns the result.
+func (s *AI) executeToolCall(ctx context.Context, d Delivery, tc ai.ToolCallRequest, parentSpan *store.SpanBuilder) ai.ToolCallResult {
+	// Parse "handle.tool_name" format
+	name := tc.Name
+	handle := ""
+	toolName := name
+	if idx := findDot(name); idx >= 0 {
+		handle = name[:idx]
+		toolName = name[idx+1:]
+	}
+
+	// Create child span for this tool call
+	var span *store.SpanBuilder
+	if d.Tracer != nil && parentSpan != nil {
+		span = d.Tracer.StartChild(parentSpan, "tool_call:"+toolName, store.SpanKindClient, map[string]any{
+			"tool.name":   toolName,
+			"tool.handle": handle,
+			"tool.args":   string(tc.Arguments),
+		})
+	}
+
+	// Parse arguments
+	var args map[string]any
+	json.Unmarshal(tc.Arguments, &args)
+
+	// Find the installation by handle
+	installation, err := s.Store.GetInstallationByHandle(d.BotDBID, handle)
+	if err != nil || installation == nil || !installation.Enabled {
+		errMsg := fmt.Sprintf("tool %q not found (handle=%q)", toolName, handle)
+		slog.Warn("ai tool call: installation not found", "bot", d.BotDBID, "tool", name)
+		if span != nil {
+			span.EndWithError(errMsg)
+		}
+		return ai.ToolCallResult{ID: tc.ID, Name: tc.Name, Content: errMsg}
+	}
+
+	if span != nil {
+		span.SetAttr("app.name", installation.AppName)
+	}
+
+	// Build event (same format as command events)
+	event := appdelivery.NewEvent("command", map[string]any{
+		"command": toolName,
+		"text":    "",
+		"args":    args,
+		"sender":  map[string]any{"id": "system", "name": "AI Agent"},
+	})
+	if d.Tracer != nil {
+		event.TraceID = d.Tracer.TraceID()
+	}
+
+	// Deliver to app
+	result := s.AppDisp.DeliverWithRetry(installation, event)
+
+	if result == nil {
+		if span != nil {
+			span.EndWithError("no response")
+		}
+		return ai.ToolCallResult{ID: tc.ID, Name: tc.Name, Content: "tool returned no response"}
+	}
+
+	if span != nil {
+		span.SetAttr("http.status_code", result.StatusCode)
+		span.SetAttr("tool.result", truncateStr(result.Reply, 500))
+		span.End()
+	}
+
+	content := result.Reply
+	if content == "" {
+		content = fmt.Sprintf("tool returned HTTP %d with no content", result.StatusCode)
+	}
+	return ai.ToolCallResult{ID: tc.ID, Name: tc.Name, Content: content}
+}
+
+func (s *AI) stopTyping(d Delivery, ticket string) {
+	if ticket != "" {
+		d.Provider.SendTyping(context.Background(), d.Message.Sender, ticket, false)
+	}
 }
 
 func (s *AI) resolveGlobalConfig() store.AIConfig {
@@ -132,24 +295,18 @@ func (s *AI) resolveGlobalConfig() store.AIConfig {
 	return cfg
 }
 
-func (s *AI) resolveConfig(cfg store.AIConfig) store.AIConfig {
-	if cfg.Source != "builtin" {
-		return cfg
-	}
-	global, _ := s.Store.ListConfigByPrefix("ai.")
-	if global["ai.api_key"] == "" {
-		return cfg
-	}
-	cfg.BaseURL = global["ai.base_url"]
-	cfg.APIKey = global["ai.api_key"]
-	cfg.Model = global["ai.model"]
-	if cfg.SystemPrompt == "" {
-		cfg.SystemPrompt = global["ai.system_prompt"]
-	}
-	if cfg.MaxHistory <= 0 {
-		if v := global["ai.max_history"]; v != "" {
-			fmt.Sscanf(v, "%d", &cfg.MaxHistory)
+func findDot(s string) int {
+	for i, c := range s {
+		if c == '.' {
+			return i
 		}
 	}
-	return cfg
+	return -1
+}
+
+func truncateStr(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }

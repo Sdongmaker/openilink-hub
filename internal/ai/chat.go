@@ -15,31 +15,88 @@ import (
 const defaultBaseURL = "https://api.openai.com/v1"
 const defaultModel = "gpt-4o-mini"
 const defaultMaxHistory = 20
+const MaxToolRounds = 5
 
-type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+// Message supports text, tool_calls, and tool results.
+type Message struct {
+	Role       string     `json:"role"`
+	Content    any        `json:"content,omitempty"`     // string or null
+	ToolCalls  []toolCall `json:"tool_calls,omitempty"`  // assistant response
+	ToolCallID string     `json:"tool_call_id,omitempty"` // tool result
+	Name       string     `json:"name,omitempty"`        // tool result function name
+}
+
+type toolCall struct {
+	ID       string       `json:"id"`
+	Type     string       `json:"type"` // "function"
+	Function functionCall `json:"function"`
+}
+
+type functionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"` // JSON string
+}
+
+// Tool describes an OpenAI-compatible function tool.
+type Tool struct {
+	Type     string       `json:"type"` // "function"
+	Function ToolFunction `json:"function"`
+}
+
+type ToolFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters,omitempty"`
 }
 
 type chatRequest struct {
 	Model    string        `json:"model"`
-	Messages []chatMessage `json:"messages"`
+	Messages []Message `json:"messages"`
+	Tools    []Tool        `json:"tools,omitempty"`
 }
 
 type chatResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Error *struct {
+	Choices []chatChoice `json:"choices"`
+	Error   *struct {
 		Message string `json:"message"`
 	} `json:"error,omitempty"`
 }
 
+type chatChoice struct {
+	Message      chatResponseMessage `json:"message"`
+	FinishReason string              `json:"finish_reason"`
+}
+
+type chatResponseMessage struct {
+	Role      string     `json:"role"`
+	Content   *string    `json:"content"`
+	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+// ToolCallRequest is returned when the LLM wants to call a tool.
+type ToolCallRequest struct {
+	ID        string          // tool_call ID for correlation
+	Name      string          // function name
+	Arguments json.RawMessage // parsed arguments
+}
+
+// ToolCallResult is the result of executing a tool call.
+type ToolCallResult struct {
+	ID      string // matches ToolCallRequest.ID
+	Name    string // function name
+	Content string // result text to feed back to LLM
+}
+
+// CompletionResult holds the outcome of a completion call.
+type CompletionResult struct {
+	Content   string            // text reply (empty if tool_calls)
+	ToolCalls []ToolCallRequest // tool calls to execute (empty if text reply)
+}
+
 // Complete calls the OpenAI-compatible chat completion API.
 // It builds context from recent message history for the given sender.
-func Complete(ctx context.Context, cfg store.AIConfig, s store.MessageStore, channelID, sender, text string) (string, error) {
+// Returns text content or tool call requests.
+func Complete(ctx context.Context, cfg store.AIConfig, s store.MessageStore, channelID, sender, text string, tools []Tool) (*CompletionResult, error) {
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
 		baseURL = defaultBaseURL
@@ -54,15 +111,14 @@ func Complete(ctx context.Context, cfg store.AIConfig, s store.MessageStore, cha
 	}
 
 	// Build conversation from message history
-	var messages []chatMessage
+	var messages []Message
 
 	if cfg.SystemPrompt != "" {
-		messages = append(messages, chatMessage{Role: "system", Content: cfg.SystemPrompt})
+		messages = append(messages, Message{Role: "system", Content: cfg.SystemPrompt})
 	}
 
 	// Load recent history scoped to this channel
 	history, _ := s.ListChannelMessages(channelID, sender, maxHistory)
-	// history is DESC order, reverse it
 	for i := len(history) - 1; i >= 0; i-- {
 		m := history[i]
 		content := extractTextFromItems(m.ItemList)
@@ -70,51 +126,152 @@ func Complete(ctx context.Context, cfg store.AIConfig, s store.MessageStore, cha
 			continue
 		}
 		if m.Direction == "inbound" {
-			messages = append(messages, chatMessage{Role: "user", Content: content})
+			messages = append(messages, Message{Role: "user", Content: content})
 		} else {
-			messages = append(messages, chatMessage{Role: "assistant", Content: content})
+			messages = append(messages, Message{Role: "assistant", Content: content})
 		}
 	}
 
 	// Append current message
-	messages = append(messages, chatMessage{Role: "user", Content: text})
+	messages = append(messages, Message{Role: "user", Content: text})
 
-	// Call API
+	return callAPI(ctx, baseURL, cfg.APIKey, model, messages, tools)
+}
+
+// ContinueWithToolResults feeds tool results back to the LLM and gets the next response.
+func ContinueWithToolResults(ctx context.Context, cfg store.AIConfig, messages []Message, results []ToolCallResult, tools []Tool) (*CompletionResult, []Message, error) {
+	baseURL := cfg.BaseURL
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+	model := cfg.Model
+	if model == "" {
+		model = defaultModel
+	}
+
+	// Append tool results as messages
+	for _, r := range results {
+		messages = append(messages, Message{
+			Role:       "tool",
+			ToolCallID: r.ID,
+			Name:       r.Name,
+			Content:    r.Content,
+		})
+	}
+
+	result, err := callAPI(ctx, baseURL, cfg.APIKey, model, messages, tools)
+	return result, messages, err
+}
+
+// GetMessages returns a copy of the messages built during Complete for continuing the conversation.
+func BuildMessages(cfg store.AIConfig, s store.MessageStore, channelID, sender, text string) []Message {
+	maxHistory := cfg.MaxHistory
+	if maxHistory <= 0 {
+		maxHistory = defaultMaxHistory
+	}
+
+	var messages []Message
+	if cfg.SystemPrompt != "" {
+		messages = append(messages, Message{Role: "system", Content: cfg.SystemPrompt})
+	}
+
+	history, _ := s.ListChannelMessages(channelID, sender, maxHistory)
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		content := extractTextFromItems(m.ItemList)
+		if content == "" {
+			continue
+		}
+		if m.Direction == "inbound" {
+			messages = append(messages, Message{Role: "user", Content: content})
+		} else {
+			messages = append(messages, Message{Role: "assistant", Content: content})
+		}
+	}
+	messages = append(messages, Message{Role: "user", Content: text})
+	return messages
+}
+
+// AppendAssistantToolCalls appends the assistant's tool_calls message to the conversation.
+func AppendAssistantToolCalls(messages []Message, calls []ToolCallRequest) []Message {
+	var tcs []toolCall
+	for _, c := range calls {
+		tcs = append(tcs, toolCall{
+			ID:   c.ID,
+			Type: "function",
+			Function: functionCall{
+				Name:      c.Name,
+				Arguments: string(c.Arguments),
+			},
+		})
+	}
+	return append(messages, Message{
+		Role:      "assistant",
+		ToolCalls: tcs,
+	})
+}
+
+func callAPI(ctx context.Context, baseURL, apiKey, model string, messages []Message, tools []Tool) (*CompletionResult, error) {
 	endpoint := strings.TrimRight(baseURL, "/") + "/chat/completions"
 
-	reqBody, _ := json.Marshal(chatRequest{Model: model, Messages: messages})
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
-	if err != nil {
-		return "", err
+	req := chatRequest{Model: model, Messages: messages}
+	if len(tools) > 0 {
+		req.Tools = tools
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	reqBody, _ := json.Marshal(req)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
 	if err != nil {
-		return "", fmt.Errorf("ai request failed: %w", err)
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("ai request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("ai api returned %d: %s", resp.StatusCode, truncate(string(body), 200))
+		return nil, fmt.Errorf("ai api returned %d: %s", resp.StatusCode, truncate(string(body), 200))
 	}
 
 	var result chatResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("ai response parse failed (not JSON): %s", truncate(string(body), 200))
+		return nil, fmt.Errorf("ai response parse failed: %s", truncate(string(body), 200))
 	}
 
 	if result.Error != nil {
-		return "", fmt.Errorf("ai error: %s", result.Error.Message)
+		return nil, fmt.Errorf("ai error: %s", result.Error.Message)
 	}
-	if len(result.Choices) == 0 || result.Choices[0].Message.Content == "" {
-		return "", fmt.Errorf("ai returned empty response")
+	if len(result.Choices) == 0 {
+		return nil, fmt.Errorf("ai returned empty response")
 	}
 
-	return result.Choices[0].Message.Content, nil
+	choice := result.Choices[0]
+
+	// Tool calls
+	if len(choice.Message.ToolCalls) > 0 {
+		var calls []ToolCallRequest
+		for _, tc := range choice.Message.ToolCalls {
+			calls = append(calls, ToolCallRequest{
+				ID:        tc.ID,
+				Name:      tc.Function.Name,
+				Arguments: json.RawMessage(tc.Function.Arguments),
+			})
+		}
+		return &CompletionResult{ToolCalls: calls}, nil
+	}
+
+	// Text reply
+	content := ""
+	if choice.Message.Content != nil {
+		content = *choice.Message.Content
+	}
+	return &CompletionResult{Content: content}, nil
 }
 
 func truncate(s string, max int) string {
