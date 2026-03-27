@@ -5,9 +5,9 @@ import "regexp"
 var (
 	reCodeBlock  = regexp.MustCompile("(?s)```.*?```")
 	reBold1      = regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	reBold2      = regexp.MustCompile(`__([^_]+)__`)
+	reBold2      = regexp.MustCompile(`(?:^|[^a-zA-Z0-9])__([^_\n]+)__(?:[^a-zA-Z0-9]|$)`)
 	reItalic1    = regexp.MustCompile(`\*([^*]+)\*`)
-	reItalic2    = regexp.MustCompile(`_([^_]+)_`)
+	reItalic2    = regexp.MustCompile(`(?:^|[^a-zA-Z0-9])_([^_\n]+)_(?:[^a-zA-Z0-9]|$)`)
 	reStrike     = regexp.MustCompile(`~~(.*?)~~`)
 	reInlineCode = regexp.MustCompile("`([^`]+)`")
 	reAtxHeader  = regexp.MustCompile(`(?m)^#{1,6}\s+(.+?)\s*#*$`)
@@ -16,7 +16,6 @@ var (
 	reBlockquote = regexp.MustCompile(`(?m)^>\s?`)
 	reListLeader = regexp.MustCompile(`(?m)^[\s\t]*(?:[-*+]|\d+\.)\s+`)
 	reSetext     = regexp.MustCompile(`(?m)^[=\-]{2,}\s*$`)
-	reHRule      = regexp.MustCompile(`(?m)^-{3,}\s*$`)
 	reMultiNL    = regexp.MustCompile(`\n{3,}`)
 )
 
@@ -36,7 +35,6 @@ func StripMarkdown(s string) string {
 	s = reBlockquote.ReplaceAllString(s, "  ")
 	s = reListLeader.ReplaceAllString(s, "")
 	s = reSetext.ReplaceAllString(s, "")
-	s = reHRule.ReplaceAllString(s, "")
 	s = reMultiNL.ReplaceAllString(s, "\n\n")
 	return s
 }
