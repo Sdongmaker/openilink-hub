@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import logoBlack from "@/assets/logo-black.svg";
 import logoWhite from "@/assets/logo-white.svg";
 import iconBlack from "@/assets/icon-black.svg";
@@ -97,6 +97,18 @@ const statusColors: Record<string, string> = {
 function LayoutHeader() {
   const location = useLocation();
   const { resolvedTheme, setTheme } = useTheme();
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const pathSegments = location.pathname
     .split("/")
@@ -156,6 +168,7 @@ function LayoutHeader() {
           <div className="hidden lg:flex relative items-center group">
             <Search className="absolute left-3 size-3.5 text-muted-foreground group-focus-within:text-primary transition-colors z-10" />
             <Input
+              ref={searchRef}
               aria-label="搜索"
               placeholder="搜索..."
               className="h-9 w-56 pl-9 pr-14 focus:w-72 transition-all duration-200 bg-muted/40 border-border/50"
