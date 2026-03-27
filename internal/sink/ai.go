@@ -179,6 +179,17 @@ func (s *AI) collectTools(botID string) []ai.Tool {
 		}
 		var appTools []store.AppTool
 		json.Unmarshal(app.Tools, &appTools)
+		if len(appTools) == 0 {
+			continue
+		}
+		// Use handle or fall back to app slug for tool name prefix
+		prefix := inst.Handle
+		if prefix == "" {
+			prefix = inst.AppSlug
+		}
+		if prefix == "" {
+			continue // no way to route back to this app
+		}
 		for _, t := range appTools {
 			if t.Name == "" {
 				continue
@@ -190,7 +201,7 @@ func (s *AI) collectTools(botID string) []ai.Tool {
 			tools = append(tools, ai.Tool{
 				Type: "function",
 				Function: ai.ToolFunction{
-					Name:        inst.Handle + "." + t.Name,
+					Name:        prefix + "__" + t.Name,
 					Description: fmt.Sprintf("[%s] %s", inst.AppName, t.Description),
 					Parameters:  params,
 				},
@@ -202,13 +213,13 @@ func (s *AI) collectTools(botID string) []ai.Tool {
 
 // executeToolCall delivers a tool call to the corresponding app and returns the result.
 func (s *AI) executeToolCall(ctx context.Context, d Delivery, tc ai.ToolCallRequest, parentSpan *store.SpanBuilder) ai.ToolCallResult {
-	// Parse "handle.tool_name" format
+	// Parse "prefix__tool_name" format (prefix is handle or app slug)
 	name := tc.Name
-	handle := ""
+	prefix := ""
 	toolName := name
-	if idx := findDot(name); idx >= 0 {
-		handle = name[:idx]
-		toolName = name[idx+1:]
+	if idx := strings.Index(name, "__"); idx >= 0 {
+		prefix = name[:idx]
+		toolName = name[idx+2:]
 	}
 
 	// Create child span for this tool call
@@ -216,7 +227,7 @@ func (s *AI) executeToolCall(ctx context.Context, d Delivery, tc ai.ToolCallRequ
 	if d.Tracer != nil && parentSpan != nil {
 		span = d.Tracer.StartChild(parentSpan, "tool_call:"+toolName, store.SpanKindClient, map[string]any{
 			"tool.name":   toolName,
-			"tool.handle": handle,
+			"tool.prefix": prefix,
 			"tool.args":   string(tc.Arguments),
 		})
 	}
@@ -225,10 +236,20 @@ func (s *AI) executeToolCall(ctx context.Context, d Delivery, tc ai.ToolCallRequ
 	var args map[string]any
 	json.Unmarshal(tc.Arguments, &args)
 
-	// Find the installation by handle
-	installation, err := s.Store.GetInstallationByHandle(d.BotDBID, handle)
-	if err != nil || installation == nil || !installation.Enabled {
-		errMsg := fmt.Sprintf("tool %q not found (handle=%q)", toolName, handle)
+	// Find the installation: try by handle first, then by app slug
+	installation, err := s.Store.GetInstallationByHandle(d.BotDBID, prefix)
+	if (err != nil || installation == nil) && s.AppDisp != nil {
+		// Fallback: find by app slug
+		installations, _ := s.Store.ListInstallationsByBot(d.BotDBID)
+		for i := range installations {
+			if installations[i].AppSlug == prefix && installations[i].Enabled {
+				installation = &installations[i]
+				break
+			}
+		}
+	}
+	if installation == nil || !installation.Enabled {
+		errMsg := fmt.Sprintf("tool %q not found (prefix=%q)", toolName, prefix)
 		slog.Warn("ai tool call: installation not found", "bot", d.BotDBID, "tool", name)
 		if span != nil {
 			span.EndWithError(errMsg)
@@ -297,14 +318,6 @@ func (s *AI) resolveGlobalConfig() store.AIConfig {
 	return cfg
 }
 
-func findDot(s string) int {
-	for i, c := range s {
-		if c == '.' {
-			return i
-		}
-	}
-	return -1
-}
 
 func truncateStr(s string, max int) string {
 	if len(s) <= max {
