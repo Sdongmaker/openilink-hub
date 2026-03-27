@@ -58,8 +58,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then VERSION="snapshot"; fi
           go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA::7} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o openilink-hub .
-          tar czf "openilink-hub_${VERSION}_darwin_${{ matrix.goarch }}.tar.gz" openilink-hub
+            -o oih .
+          tar czf "openilink-hub_${VERSION}_darwin_${{ matrix.goarch }}.tar.gz" oih
       - uses: actions/upload-artifact@v7
         with:
           name: darwin-${{ matrix.goarch }}
