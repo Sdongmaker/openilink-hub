@@ -111,6 +111,17 @@ func (s *Server) handleDeleteOAuthConfig(w http.ResponseWriter, r *http.Request)
 	jsonOK(w)
 }
 
+// GET /api/config/ai/available_models — public endpoint returning the configured model list
+func (s *Server) handleGetAvailableModels(w http.ResponseWriter, r *http.Request) {
+	dbConf, _ := s.Store.ListConfigByPrefix("ai.")
+	raw := dbConf["ai.available_models"]
+	if raw == "" || !json.Valid([]byte(raw)) {
+		raw = "[]"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(raw))
+}
+
 // GET /api/admin/config/ai — get global AI config
 func (s *Server) handleGetAIConfig(w http.ResponseWriter, r *http.Request) {
 	dbConf, err := s.Store.ListConfigByPrefix("ai.")
@@ -119,12 +130,13 @@ func (s *Server) handleGetAIConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result := map[string]string{
-		"base_url":      dbConf["ai.base_url"],
-		"api_key":       maskSecret(dbConf["ai.api_key"]),
-		"model":         dbConf["ai.model"],
-		"system_prompt": dbConf["ai.system_prompt"],
-		"max_history":   dbConf["ai.max_history"],
-		"hide_thinking": dbConf["ai.hide_thinking"],
+		"base_url":         dbConf["ai.base_url"],
+		"api_key":          maskSecret(dbConf["ai.api_key"]),
+		"model":            dbConf["ai.model"],
+		"system_prompt":    dbConf["ai.system_prompt"],
+		"max_history":      dbConf["ai.max_history"],
+		"hide_thinking":    dbConf["ai.hide_thinking"],
+		"available_models": dbConf["ai.available_models"],
 	}
 	if dbConf["ai.api_key"] != "" {
 		result["enabled"] = "true"
@@ -136,12 +148,13 @@ func (s *Server) handleGetAIConfig(w http.ResponseWriter, r *http.Request) {
 // PUT /api/admin/config/ai — set global AI config
 func (s *Server) handleSetAIConfig(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		BaseURL      string `json:"base_url"`
-		APIKey       string `json:"api_key"`
-		Model        string `json:"model"`
-		SystemPrompt string `json:"system_prompt"`
-		MaxHistory   string `json:"max_history"`
-		HideThinking string `json:"hide_thinking"`
+		BaseURL         string `json:"base_url"`
+		APIKey          string `json:"api_key"`
+		Model           string `json:"model"`
+		SystemPrompt    string `json:"system_prompt"`
+		MaxHistory      string `json:"max_history"`
+		HideThinking    string `json:"hide_thinking"`
+		AvailableModels string `json:"available_models"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "invalid request", http.StatusBadRequest)
@@ -165,6 +178,9 @@ func (s *Server) handleSetAIConfig(w http.ResponseWriter, r *http.Request) {
 	if req.HideThinking != "" {
 		s.Store.SetConfig("ai.hide_thinking", req.HideThinking)
 	}
+	if req.AvailableModels != "" {
+		s.Store.SetConfig("ai.available_models", req.AvailableModels)
+	}
 	jsonOK(w)
 }
 
@@ -174,6 +190,7 @@ func (s *Server) handleDeleteAIConfig(w http.ResponseWriter, r *http.Request) {
 	s.Store.DeleteConfig("ai.api_key")
 	s.Store.DeleteConfig("ai.model")
 	s.Store.DeleteConfig("ai.hide_thinking")
+	s.Store.DeleteConfig("ai.available_models")
 	jsonOK(w)
 }
 

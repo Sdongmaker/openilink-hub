@@ -53,6 +53,7 @@ export function BotDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editingDisplayName, setEditingDisplayName] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const marketplaceRef = useRef<HTMLDivElement>(null);
 
   const loadBot = useCallback(async () => {
@@ -96,6 +97,9 @@ export function BotDetailPage() {
     loadBot();
     loadInstallations();
     loadMarketplace();
+    api.getAvailableModels().then((models) => {
+      if (Array.isArray(models)) setAvailableModels(models);
+    }).catch(() => {});
     const t = setInterval(async () => {
       try {
         const bots = await api.listBots();
@@ -282,6 +286,39 @@ export function BotDetailPage() {
               }}
             />
           </div>
+
+          {/* Model selector */}
+          {bot.ai_enabled && availableModels.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">模型</Label>
+              <Select
+                value={bot.ai_model || ""}
+                onValueChange={async (model) => {
+                  try {
+                    await api.setBotAIModel(id!, model);
+                    setBot({ ...bot, ai_model: model });
+                    toast({ title: model ? `已切换到模型：${model}` : "已恢复全局默认模型" });
+                  } catch (err: any) {
+                    toast({
+                      variant: "destructive",
+                      title: "操作失败",
+                      description: err.message,
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger className="h-7 text-xs w-48">
+                  <SelectValue placeholder="使用全局默认" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">使用全局默认</SelectItem>
+                  {availableModels.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <Separator orientation="vertical" className="h-6 mx-1" />
 

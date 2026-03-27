@@ -92,6 +92,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ enabled }),
     }),
+  setBotAIModel: (botId: string, model: string) =>
+    request(`/api/bots/${botId}/ai_model`, {
+      method: "PUT",
+      body: JSON.stringify({ model }),
+    }),
   botContacts: (id: string) => request<any[]>(`/api/bots/${id}/contacts`),
 
   // Channels (under bots)
@@ -133,6 +138,9 @@ export const api = {
   deleteOAuthConfig: (provider: string) =>
     request(`/api/admin/config/oauth/${provider}`, { method: "DELETE" }),
 
+  // Public: available models list (all authenticated users)
+  getAvailableModels: () => request<string[]>("/api/config/ai/available_models"),
+
   // Admin: AI config
   getAIConfig: () => request<any>("/api/admin/config/ai"),
   setAIConfig: (data: {
@@ -142,6 +150,7 @@ export const api = {
     system_prompt?: string;
     max_history?: string;
     hide_thinking?: string;
+    available_models?: string;
   }) => request("/api/admin/config/ai", { method: "PUT", body: JSON.stringify(data) }),
   deleteAIConfig: () => request("/api/admin/config/ai", { method: "DELETE" }),
 

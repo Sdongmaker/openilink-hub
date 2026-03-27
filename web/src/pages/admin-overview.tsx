@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   Users,
@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Card,
@@ -68,6 +69,16 @@ export function AdminOverviewPage() {
   const [aiConfig, setAIConfig] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+
+  const availableModelsText = useMemo(() => {
+    try {
+      return aiConfig?.available_models
+        ? JSON.parse(aiConfig.available_models).join("\n")
+        : "";
+    } catch {
+      return "";
+    }
+  }, [aiConfig?.available_models]);
 
   useEffect(() => {
     api
@@ -175,6 +186,26 @@ export function AdminOverviewPage() {
               <Input
                 value={aiConfig?.model || ""}
                 onChange={(e) => setAIConfig({ ...aiConfig, model: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">
+                可用模型列表（每行一个）
+              </Label>
+              <Textarea
+                value={availableModelsText}
+                onChange={(e) => {
+                  const models = e.target.value
+                    .split("\n")
+                    .map((s: string) => s.trim())
+                    .filter(Boolean);
+                  setAIConfig((prev: typeof aiConfig) => ({
+                    ...prev,
+                    available_models: JSON.stringify(models),
+                  }));
+                }}
+                rows={4}
+                placeholder={"gpt-4o-mini\ngpt-4o\nclaude-3-5-sonnet-20241022"}
               />
             </div>
             <div className="space-y-1.5">

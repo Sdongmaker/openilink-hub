@@ -143,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 	// Bot operations
 	protected.HandleFunc("PUT /api/bots/{id}", s.handleUpdateBot)
 	protected.HandleFunc("PUT /api/bots/{id}/ai", s.handleSetBotAI)
+	protected.HandleFunc("PUT /api/bots/{id}/ai_model", s.handleSetBotAIModel)
 	protected.HandleFunc("POST /api/bots/{id}/send", s.handleBotSend)
 	protected.HandleFunc("GET /api/bots/{id}/contacts", s.handleBotContacts)
 	protected.HandleFunc("GET /api/bots/stats", s.handleStats)
@@ -216,6 +217,7 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("GET /api/admin/config/oauth", s.requireAdmin(s.handleGetOAuthConfig))
 	protected.HandleFunc("PUT /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleSetOAuthConfig))
 	protected.HandleFunc("DELETE /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleDeleteOAuthConfig))
+	protected.HandleFunc("GET /api/config/ai/available_models", s.handleGetAvailableModels)
 	protected.HandleFunc("GET /api/admin/config/ai", s.requireAdmin(s.handleGetAIConfig))
 	protected.HandleFunc("PUT /api/admin/config/ai", s.requireAdmin(s.handleSetAIConfig))
 	protected.HandleFunc("DELETE /api/admin/config/ai", s.requireAdmin(s.handleDeleteAIConfig))
