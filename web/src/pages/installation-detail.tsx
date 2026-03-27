@@ -15,6 +15,7 @@ import {
   ScrollText,
   Terminal,
   Sliders,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -268,7 +269,7 @@ export function InstallationDetailPage() {
               onUninstall={() => navigate(`/dashboard/accounts/${botId}`)}
             />
           )}
-          {section === "event-logs" && <EventLogsSection appId={inst.app_id} instId={inst.id} />}
+          {section === "event-logs" && <EventLogsSection appId={inst.app_id} instId={inst.id} botId={botId!} />}
           {section === "api-logs" && <ApiLogsSection appId={inst.app_id} instId={inst.id} />}
         </div>
       </div>
@@ -615,7 +616,8 @@ function ConfigSection({
 
 // ==================== Event Logs Section ====================
 
-function EventLogsSection({ appId, instId }: { appId: string; instId: string }) {
+function EventLogsSection({ appId, instId, botId }: { appId: string; instId: string; botId: string }) {
+  const navigate = useNavigate();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const loadLogs = useCallback(async () => {
@@ -683,11 +685,18 @@ function EventLogsSection({ appId, instId }: { appId: string; instId: string }) 
                 <TableHead>状态码</TableHead>
                 <TableHead>耗时</TableHead>
                 <TableHead>错误</TableHead>
+                <TableHead className="w-8" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {logs.map((log) => (
-                <TableRow key={log.id || log.trace_id + log.created_at}>
+                <TableRow
+                  key={log.id || log.trace_id + log.created_at}
+                  className={log.trace_id ? "cursor-pointer focus-visible:bg-muted/50" : ""}
+                  tabIndex={log.trace_id ? 0 : undefined}
+                  onClick={() => log.trace_id && navigate(`/dashboard/accounts/${botId}/traces/${log.trace_id}`)}
+                  onKeyDown={(e) => { if (log.trace_id && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); navigate(`/dashboard/accounts/${botId}/traces/${log.trace_id}`); } }}
+                >
                   <TableCell className="font-mono whitespace-nowrap">
                     {formatTime(log.created_at)}
                   </TableCell>
@@ -697,7 +706,7 @@ function EventLogsSection({ appId, instId }: { appId: string; instId: string }) 
                     </Badge>
                   </TableCell>
                   <TableCell className="font-mono text-muted-foreground">
-                    {log.trace_id ? log.trace_id.slice(0, 12) + "..." : "-"}
+                    {log.trace_id ? log.trace_id.slice(0, 12) + "…" : "-"}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={log.status_code || log.status} />
@@ -707,6 +716,9 @@ function EventLogsSection({ appId, instId }: { appId: string; instId: string }) 
                   </TableCell>
                   <TableCell className="text-destructive max-w-48 truncate">
                     {log.error || "-"}
+                  </TableCell>
+                  <TableCell className="w-8 px-2">
+                    {log.trace_id && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                   </TableCell>
                 </TableRow>
               ))}
