@@ -1017,10 +1017,10 @@ function StatusBadge({ status }: { status: number | string | undefined }) {
   );
 }
 
-function formatTime(ts: string | undefined): string {
+function formatTime(ts: number | undefined): string {
   if (!ts) return "-";
   try {
-    const d = new Date(ts);
+    const d = new Date(ts * 1000);
     return d.toLocaleString("zh-CN", {
       month: "2-digit",
       day: "2-digit",
@@ -1029,6 +1029,6 @@ function formatTime(ts: string | undefined): string {
       second: "2-digit",
     });
   } catch {
-    return ts;
+    return "-";
   }
 }
