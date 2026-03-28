@@ -175,7 +175,7 @@ export function AdminReviewsPage() {
         {/* Right: Detail Panel */}
         <div className="flex-1 min-w-0">
           {selected ? (
-            <div className="rounded-xl border border-border/50 bg-card p-6 space-y-6 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
+            <div className="rounded-xl border border-border/50 bg-card p-6 space-y-6 md:sticky md:top-6 md:max-h-[calc(100vh-10rem)] md:overflow-y-auto">
               {/* Header */}
               <div className="flex items-start gap-4">
                 <AppIcon icon={selected.icon} iconUrl={selected.icon_url} size="h-12 w-12" />
