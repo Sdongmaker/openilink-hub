@@ -73,6 +73,8 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
     ids: [linux-arm64]
+    goarch: arm64
+    goarm64: v8.0
 docker_manifests:
   - name_template: "ghcr.io/openilink/openilink-hub:{{ .Version }}"
     image_templates:
