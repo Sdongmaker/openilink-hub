@@ -362,6 +362,19 @@ function RegistryConfigCard() {
     setAdding(false);
   }
 
+  async function handleImportDefault() {
+    setAdding(true);
+    try {
+      await api.createRegistry({ name: "OpeniLink Hub", url: "https://hub.openilink.com" });
+      const r = await api.getRegistries();
+      setRegistries(r || []);
+      toast({ title: "已添加官方 Registry" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "添加失败", description: e.message });
+    }
+    setAdding(false);
+  }
+
   async function handleToggleRegistry(reg: any) {
     try {
       await api.updateRegistry(reg.id, { enabled: !reg.enabled });
@@ -413,7 +426,15 @@ function RegistryConfigCard() {
             Registry 来源
           </p>
           {registries.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">暂无 Registry 来源</p>
+            <div className="flex items-center justify-between p-3 rounded-lg border border-dashed bg-muted/10">
+              <div>
+                <p className="text-sm text-muted-foreground">暂无 Registry 来源</p>
+                <p className="text-xs text-muted-foreground">添加官方 Registry 以浏览应用市场</p>
+              </div>
+              <Button size="sm" onClick={handleImportDefault} disabled={adding}>
+                <Globe className="w-3.5 h-3.5 mr-1" /> 一键导入官方源
+              </Button>
+            </div>
           ) : (
             registries.map((reg) => (
               <div
