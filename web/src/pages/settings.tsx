@@ -244,7 +244,7 @@ export function SettingsPage() {
 
         <TabsContent value="security" className="m-0 space-y-6">
           <PasskeySection />
-          <ChangePasswordSection />
+          <ChangePasswordSection hasPassword={user?.has_password} />
         </TabsContent>
       </Tabs>
     </div>
@@ -252,7 +252,7 @@ export function SettingsPage() {
 }
 
 // ... keep ChangePasswordSection and PasskeySection same ...
-function ChangePasswordSection() {
+function ChangePasswordSection({ hasPassword }: { hasPassword?: boolean }) {
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
@@ -272,7 +272,7 @@ function ChangePasswordSection() {
       setOldPwd("");
       setNewPwd("");
       setConfirmPwd("");
-      setSuccess("您的登录密码已成功更新。");
+      setSuccess(hasPassword ? "您的登录密码已成功更新。" : "登录密码已设置成功。");
     } catch (err: any) {
       setError(err.message);
     }
@@ -282,25 +282,31 @@ function ChangePasswordSection() {
   return (
     <Card className="border-border/50">
       <CardHeader>
-        <CardTitle>修改登录密码</CardTitle>
-        <CardDescription>建议定期更换密码以增强安全性。</CardDescription>
+        <CardTitle>{hasPassword ? "修改登录密码" : "设置登录密码"}</CardTitle>
+        <CardDescription>
+          {hasPassword
+            ? "建议定期更换密码以增强安全性。"
+            : "您还未设置密码。设置后可使用密码登录。"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-          <div className="space-y-2">
-            <label htmlFor="current-password" className="text-xs font-medium">
-              当前密码
-            </label>
-            <Input
-              id="current-password"
-              name="current-password"
-              type="password"
-              autoComplete="current-password"
-              value={oldPwd}
-              onChange={(e) => setOldPwd(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
+          {hasPassword && (
+            <div className="space-y-2">
+              <label htmlFor="current-password" className="text-xs font-medium">
+                当前密码
+              </label>
+              <Input
+                id="current-password"
+                name="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={oldPwd}
+                onChange={(e) => setOldPwd(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <label htmlFor="new-password" className="text-xs font-medium">
               新密码
@@ -344,10 +350,10 @@ function ChangePasswordSection() {
             <Button
               type="submit"
               className="w-full sm:w-fit"
-              disabled={saving || !oldPwd || !newPwd}
+              disabled={saving || (hasPassword && !oldPwd) || !newPwd}
             >
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              更新密码
+              {hasPassword ? "更新密码" : "设置密码"}
             </Button>
           </div>
         </form>

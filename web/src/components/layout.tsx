@@ -20,6 +20,8 @@ import {
   Circle,
   House,
   Code2,
+  ShieldAlert,
+  X,
 } from "lucide-react";
 import { api, botDisplayName } from "../lib/api";
 import { useTheme } from "../lib/theme";
@@ -237,6 +239,25 @@ function LayoutHeader() {
         </div>
       </TooltipProvider>
     </header>
+  );
+}
+
+function SecurityBanner() {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div className="flex items-center gap-3 px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-sm">
+      <ShieldAlert className="h-4 w-4 text-amber-500 shrink-0" />
+      <span className="text-amber-700 dark:text-amber-400">
+        您的账号尚未设置密码或绑定通行密钥，登出后可能无法再次登录。
+        <Link to="/dashboard/settings/security" className="underline font-medium ml-1 hover:no-underline">
+          前往设置
+        </Link>
+      </span>
+      <button onClick={() => setDismissed(true)} className="ml-auto text-amber-500/60 hover:text-amber-500">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 
@@ -503,6 +524,10 @@ export function Layout() {
 
       <SidebarInset className="flex flex-col bg-background/50 rounded-tl-2xl overflow-hidden">
         <LayoutHeader />
+
+        {user && !user.has_password && !user.has_passkey && !user.has_oauth && (
+          <SecurityBanner />
+        )}
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="h-full mx-auto w-full max-w-[1400px] p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
