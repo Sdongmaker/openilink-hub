@@ -174,8 +174,58 @@ func (s *Store) MarkBotReminded(string) error                               { re
 func (s *Store) GetBotsNeedingReminder() ([]store.Bot, error)               { return nil, nil }
 func (s *Store) DeleteBot(string) error                                     { return nil }
 func (s *Store) CountBotsByUser(string) (int, error)                        { return 0, nil }
-func (s *Store) GetAdminStats() (*store.AdminStats, error)                  { return &store.AdminStats{}, nil }
-func (s *Store) GetBotStats(string) (*store.BotStats, error)                { return &store.BotStats{}, nil }
+func (s *Store) GetAdminStats() (*store.AdminStats, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := &store.AdminStats{
+		TotalBots: len(s.bots),
+	}
+	for _, b := range s.bots {
+		if b.Status == "connected" {
+			stats.OnlineBots++
+		} else if b.Status == "session_expired" {
+			stats.ExpiredBots++
+		}
+	}
+	for _, inst := range s.installations {
+		if inst.Enabled {
+			stats.TotalInstallations++
+		}
+	}
+	for _, m := range s.messages {
+		stats.TotalMessages++
+		if m.Direction == "inbound" {
+			stats.InboundMessages++
+		} else {
+			stats.OutboundMessages++
+		}
+	}
+	return stats, nil
+}
+
+func (s *Store) GetBotStats(userID string) (*store.BotStats, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := &store.BotStats{}
+	for _, b := range s.bots {
+		if b.UserID == userID {
+			stats.TotalBots++
+			if b.Status == "connected" {
+				stats.OnlineBots++
+			}
+			stats.TotalMessages += b.MsgCount
+		}
+	}
+	for _, inst := range s.installations {
+		if inst.Enabled {
+			// Check if this installation belongs to the user's bot
+			if b, ok := s.bots[inst.BotID]; ok && b.UserID == userID {
+				stats.TotalInstallations++
+			}
+		}
+	}
+	return stats, nil
+}
 func (s *Store) UpdateBotAIEnabled(string, bool) error                      { return nil }
 func (s *Store) UpdateBotAIModel(string, string) error                      { return nil }
 func (s *Store) LastActivityAt(string) *time.Time                           { return nil }
