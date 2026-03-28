@@ -37,6 +37,8 @@ import { Input } from "@/components/ui/input";
 import { AppIcon } from "../components/app-icon";
 import { parseTools } from "../components/tools-display";
 
+const DEFAULT_MODEL = "__default__";
+
 // ==================== Page ====================
 
 function formatRelativeTime(ts: number) {
@@ -302,8 +304,9 @@ export function BotDetailPage() {
             <div className="flex items-center gap-1.5">
               <Label className="text-xs font-bold uppercase text-muted-foreground">模型</Label>
               <Select
-                value={bot.ai_model || ""}
-                onValueChange={async (model) => {
+                value={bot.ai_model || DEFAULT_MODEL}
+                onValueChange={async (val) => {
+                  const model = val === DEFAULT_MODEL ? "" : val;
                   try {
                     await api.setBotAIModel(id!, model);
                     setBot({ ...bot, ai_model: model });
@@ -321,8 +324,8 @@ export function BotDetailPage() {
                   <SelectValue placeholder="使用全局默认" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">使用全局默认</SelectItem>
-                  {availableModels.map((m) => (
+                  <SelectItem value={DEFAULT_MODEL}>使用全局默认</SelectItem>
+                  {availableModels.filter(Boolean).map((m) => (
                     <SelectItem key={m} value={m}>{m}</SelectItem>
                   ))}
                 </SelectContent>
