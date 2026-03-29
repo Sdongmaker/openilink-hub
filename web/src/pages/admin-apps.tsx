@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -6,23 +6,23 @@ import { Dialog, DialogContent } from "../components/ui/dialog";
 import { api } from "../lib/api";
 import { Blocks, Trash2, X, Pencil } from "lucide-react";
 import { useConfirm, usePrompt } from "@/components/ui/confirm-dialog";
+import {
+  useAdminApps,
+  useSetAppListing,
+  useReviewListing,
+  useDeleteAdminApp,
+} from "@/hooks/use-admin";
 
 export function AdminAppsTab() {
-  const [apps, setApps] = useState<any[]>([]);
+  const { data: apps = [] } = useAdminApps();
   const [selected, setSelected] = useState<any>(null);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const { confirm, ConfirmDialog } = useConfirm();
   const { prompt, PromptDialog } = usePrompt();
-
-  async function load() {
-    try {
-      setApps((await api.adminListApps()) || []);
-    } catch {}
-  }
-  useEffect(() => {
-    load();
-  }, []);
+  const setListingMutation = useSetAppListing();
+  const reviewMutation = useReviewListing();
+  const deleteMutation = useDeleteAdminApp();
 
   function openDetail(app: any) {
     setSelected(app);
@@ -33,8 +33,7 @@ export function AdminAppsTab() {
     e.stopPropagation();
     const newListing = app.listing === "listed" ? "unlisted" : "listed";
     try {
-      await api.setAppListing(app.id, newListing);
-      load();
+      await setListingMutation.mutateAsync({ id: app.id, listing: newListing });
     } catch (err: any) {
       setError(err.message);
     }
@@ -49,9 +48,8 @@ export function AdminAppsTab() {
     });
     if (!ok) return;
     try {
-      await api.deleteApp(app.id);
+      await deleteMutation.mutateAsync(app.id);
       setSelected(null);
-      load();
     } catch (err: any) {
       setError(err.message);
     }
@@ -59,8 +57,7 @@ export function AdminAppsTab() {
 
   async function handleApprove(app: any) {
     try {
-      await api.reviewListing(app.id, true);
-      load();
+      await reviewMutation.mutateAsync({ appId: app.id, approve: true });
     } catch (err: any) {
       setError(err.message);
     }
@@ -70,8 +67,7 @@ export function AdminAppsTab() {
     const reason = await prompt({ title: "拒绝 App", description: "请输入拒绝原因", placeholder: "拒绝原因" });
     if (!reason) return;
     try {
-      await api.reviewListing(app.id, false, reason);
-      load();
+      await reviewMutation.mutateAsync({ appId: app.id, approve: false, reason });
     } catch (err: any) {
       setError(err.message);
     }
@@ -83,7 +79,7 @@ export function AdminAppsTab() {
       {PromptDialog}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       <div className="space-y-1">
-        {apps.map((app) => (
+        {apps.map((app: any) => (
           <div
             key={app.id}
             onClick={() => openDetail(app)}
@@ -180,7 +176,6 @@ export function AdminAppsTab() {
                 app={selected}
                 onSave={() => {
                   setEditing(false);
-                  load();
                   setSelected(null);
                 }}
                 onCancel={() => setEditing(false)}
@@ -193,8 +188,7 @@ export function AdminAppsTab() {
                 onClose={() => setSelected(null)}
                 onToggleListing={() => {
                   const newListing = selected.listing === "listed" ? "unlisted" : "listed";
-                  api.setAppListing(selected.id, newListing).then(() => {
-                    load();
+                  setListingMutation.mutateAsync({ id: selected.id, listing: newListing }).then(() => {
                     setSelected({ ...selected, listing: newListing });
                   });
                 }}

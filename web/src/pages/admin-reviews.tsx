@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import { Check, X, Inbox, Globe, Terminal, Radio, Shield, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +14,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { AppIcon } from "@/components/app-icon";
 import { ListingBadge } from "@/components/listing-badge";
+import {
+  useAdminApps,
+  useSetAppListing,
+  useReviewListing,
+  useAppReviewHistory,
+} from "@/hooks/use-admin";
 
 function timeAgo(ts: number) {
   if (!ts) return "—";
@@ -57,109 +62,67 @@ const TABS: { key: TabFilter; label: string }[] = [
 ];
 
 export function AdminReviewsPage() {
-  const [apps, setApps] = useState<any[]>([]);
+  const { data: apps = [], isLoading: loading } = useAdminApps();
   const [selected, setSelected] = useState<any>(null);
-  const [reviews, setReviews] = useState<any[]>([]);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabFilter>("pending");
   const tabListRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const loadReviews = useCallback((appId: string) => {
-    api.listAppReviews(appId).then(setReviews).catch(() => setReviews([]));
-  }, []);
+  const { data: reviews = [] } = useAppReviewHistory(selected?.id);
+  const reviewMutation = useReviewListing();
+  const setListingMutation = useSetAppListing();
 
-  function loadApps() {
-    setLoading(true);
-    api.adminListApps()
-      .then((data) => {
-        setApps(data);
-        setSelected((prev: any) =>
-          prev ? (data.find((a: any) => a.id === prev.id) ?? null) : null
-        );
-      })
-      .catch(() => {
-        toast({ variant: "destructive", title: "加载失败", description: "无法获取应用列表，请刷新重试" });
-      })
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    loadApps();
-  }, []);
-
-  useEffect(() => {
-    if (selected) {
-      loadReviews(selected.id);
-    } else {
-      setReviews([]);
-    }
-  }, [selected?.id, loadReviews]);
+  const submitting = reviewMutation.isPending || setListingMutation.isPending;
 
   async function handleApprove(a: any) {
-    setSubmitting(true);
     try {
-      await api.reviewListing(a.id, true);
+      await reviewMutation.mutateAsync({ appId: a.id, approve: true });
       toast({ title: `「${a.name}」已通过上架` });
-      loadApps();
-      loadReviews(a.id);
     } catch (e: any) {
       toast({ variant: "destructive", title: "操作失败", description: e.message });
-    } finally {
-      setSubmitting(false);
     }
   }
 
   async function handleRejectConfirm() {
     if (!rejectTarget || !rejectReason.trim()) return;
     const reason = rejectReason.trim();
-    setSubmitting(true);
     try {
-      await api.reviewListing(rejectTarget.id, false, reason);
+      await reviewMutation.mutateAsync({ appId: rejectTarget.id, approve: false, reason });
       toast({ title: `「${rejectTarget.name}」已拒绝` });
       setRejectTarget(null);
       setRejectReason("");
       setSelected(null);
-      loadApps();
     } catch (e: any) {
       toast({ variant: "destructive", title: "操作失败", description: e.message });
-    } finally {
-      setSubmitting(false);
     }
   }
 
   async function handleToggle(a: any) {
     const newListing = a.listing === "listed" ? "unlisted" : "listed";
-    setSubmitting(true);
     try {
-      await api.setAppListing(a.id, newListing);
+      await setListingMutation.mutateAsync({ id: a.id, listing: newListing });
       toast({ title: newListing === "listed" ? `「${a.name}」已上架` : `「${a.name}」已下架` });
-      loadApps();
-      loadReviews(a.id);
     } catch (e: any) {
       toast({ variant: "destructive", title: "操作失败", description: e.message });
-    } finally {
-      setSubmitting(false);
     }
   }
 
   // Only apps that have entered the review process
-  const reviewed = apps.filter((a) => a.listing !== "unlisted");
+  const reviewed = apps.filter((a: any) => a.listing !== "unlisted");
 
   // Counts per tab
   const counts: Record<TabFilter, number> = {
-    pending: reviewed.filter((a) => a.listing === "pending").length,
-    listed: reviewed.filter((a) => a.listing === "listed").length,
-    rejected: reviewed.filter((a) => a.listing === "rejected").length,
+    pending: reviewed.filter((a: any) => a.listing === "pending").length,
+    listed: reviewed.filter((a: any) => a.listing === "listed").length,
+    rejected: reviewed.filter((a: any) => a.listing === "rejected").length,
     all: reviewed.length,
   };
 
   // Filter by active tab
-  const filtered = tab === "all" ? reviewed : reviewed.filter((a) => a.listing === tab);
-  const sorted = [...filtered].sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0));
+  const filtered = tab === "all" ? reviewed : reviewed.filter((a: any) => a.listing === tab);
+  const sorted = [...filtered].sort((a: any, b: any) => (b.updated_at ?? 0) - (a.updated_at ?? 0));
 
   // Computed arrays for review highlights (avoids IIFE in JSX)
   const selScopes = Array.isArray(selected?.scopes) ? selected.scopes : [];
@@ -244,7 +207,7 @@ export function AdminReviewsPage() {
               <p className="text-sm">{tab === "pending" ? "无待审核应用" : "暂无记录"}</p>
             </div>
           ) : (
-            sorted.map((a) => (
+            sorted.map((a: any) => (
               <button
                 key={a.id}
                 onClick={() => setSelected(a)}

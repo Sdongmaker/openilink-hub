@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart3,
   Users,
@@ -27,9 +27,24 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  useAdminStats,
+  useAIConfig,
+  useSaveAIConfig,
+  useRegistrationConfig,
+  useSetRegistrationConfig,
+  useOIDCConfig,
+  useSetOIDCConfig,
+  useDeleteOIDCConfig,
+  useRegistryConfig,
+  useSetRegistryConfig,
+  useRegistries,
+  useCreateRegistry,
+  useUpdateRegistry,
+  useDeleteRegistry,
+} from "@/hooks/use-admin";
 
 const METRIC_CONFIG = [
   {
@@ -67,42 +82,36 @@ function SkeletonCard() {
 }
 
 export function AdminOverviewPage() {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: stats, isLoading: loading } = useAdminStats();
+  const { data: aiConfigData } = useAIConfig();
   const [aiConfig, setAIConfig] = useState<any>(null);
-  const [saving, setSaving] = useState(false);
+  const saveAIMutation = useSaveAIConfig();
   const { toast } = useToast();
+
+  // Sync query data into local state for form editing
+  const effectiveAIConfig = aiConfig ?? aiConfigData;
 
   const availableModelsText = useMemo(() => {
     try {
-      return aiConfig?.available_models
-        ? JSON.parse(aiConfig.available_models).join("\n")
+      return effectiveAIConfig?.available_models
+        ? JSON.parse(effectiveAIConfig.available_models).join("\n")
         : "";
     } catch {
       return "";
     }
-  }, [aiConfig?.available_models]);
-
-  useEffect(() => {
-    api
-      .adminStats()
-      .then(setStats)
-      .finally(() => setLoading(false));
-    api
-      .getAIConfig()
-      .then(setAIConfig)
-      .catch(() => {});
-  }, []);
+  }, [effectiveAIConfig?.available_models]);
 
   async function handleSaveAI() {
-    setSaving(true);
     try {
-      await api.setAIConfig(aiConfig);
+      await saveAIMutation.mutateAsync(effectiveAIConfig);
       toast({ title: "全局 AI 配置已保存" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "保存失败", description: e.message });
     }
-    setSaving(false);
+  }
+
+  function updateAIConfig(patch: any) {
+    setAIConfig((prev: any) => ({ ...(prev ?? aiConfigData), ...patch }));
   }
 
   return (
@@ -182,15 +191,15 @@ export function AdminOverviewPage() {
             <div className="space-y-1.5">
               <Label className="text-xs font-bold uppercase text-muted-foreground">接口地址</Label>
               <Input
-                value={aiConfig?.base_url || ""}
-                onChange={(e) => setAIConfig({ ...aiConfig, base_url: e.target.value })}
+                value={effectiveAIConfig?.base_url || ""}
+                onChange={(e) => updateAIConfig({ base_url: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold uppercase text-muted-foreground">默认模型</Label>
               <Input
-                value={aiConfig?.model || ""}
-                onChange={(e) => setAIConfig({ ...aiConfig, model: e.target.value })}
+                value={effectiveAIConfig?.model || ""}
+                onChange={(e) => updateAIConfig({ model: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
@@ -204,8 +213,8 @@ export function AdminOverviewPage() {
                     .split("\n")
                     .map((s: string) => s.trim())
                     .filter(Boolean);
-                  setAIConfig((prev: typeof aiConfig) => ({
-                    ...prev,
+                  setAIConfig((prev: any) => ({
+                    ...(prev ?? aiConfigData),
                     available_models: JSON.stringify(models),
                   }));
                 }}
@@ -217,8 +226,8 @@ export function AdminOverviewPage() {
               <Label className="text-xs font-bold uppercase text-muted-foreground">API Key</Label>
               <Input
                 type="password"
-                value={aiConfig?.api_key || ""}
-                onChange={(e) => setAIConfig({ ...aiConfig, api_key: e.target.value })}
+                value={effectiveAIConfig?.api_key || ""}
+                onChange={(e) => updateAIConfig({ api_key: e.target.value })}
                 placeholder="••••••••"
               />
             </div>
@@ -228,9 +237,9 @@ export function AdminOverviewPage() {
                 <p className="text-xs text-muted-foreground">启用后不会将模型的思考内容发送给用户</p>
               </div>
               <Switch
-                checked={aiConfig?.hide_thinking === "true"}
+                checked={effectiveAIConfig?.hide_thinking === "true"}
                 onCheckedChange={(checked) =>
-                  setAIConfig({ ...aiConfig, hide_thinking: checked ? "true" : "false" })
+                  updateAIConfig({ hide_thinking: checked ? "true" : "false" })
                 }
               />
             </div>
@@ -240,15 +249,15 @@ export function AdminOverviewPage() {
                 <p className="text-xs text-muted-foreground">启用后将 AI 回复中的 Markdown 格式转为纯文本</p>
               </div>
               <Switch
-                checked={aiConfig?.strip_markdown === "true"}
+                checked={effectiveAIConfig?.strip_markdown === "true"}
                 onCheckedChange={(checked) =>
-                  setAIConfig({ ...aiConfig, strip_markdown: checked ? "true" : "false" })
+                  updateAIConfig({ strip_markdown: checked ? "true" : "false" })
                 }
               />
             </div>
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button onClick={handleSaveAI} disabled={saving}>
+            <Button onClick={handleSaveAI} disabled={saveAIMutation.isPending}>
               保存
             </Button>
           </CardFooter>
@@ -263,28 +272,18 @@ export function AdminOverviewPage() {
 // ==================== Registration Config ====================
 
 function RegistrationConfigCard() {
-  const [regConfig, setRegConfig] = useState<{ enabled: string } | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { data: regConfig } = useRegistrationConfig();
+  const setRegConfigMutation = useSetRegistrationConfig();
   const { toast } = useToast();
 
-  useEffect(() => {
-    api
-      .getRegistrationConfig()
-      .then(setRegConfig)
-      .catch(() => setRegConfig({ enabled: "true" }));
-  }, []);
-
   async function handleToggle() {
-    setSaving(true);
     try {
       const newEnabled = regConfig?.enabled === "true" ? "false" : "true";
-      await api.setRegistrationConfig({ enabled: newEnabled });
-      setRegConfig({ enabled: newEnabled });
+      await setRegConfigMutation.mutateAsync({ enabled: newEnabled });
       toast({ title: newEnabled === "true" ? "已开放注册" : "已关闭注册" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "保存失败", description: e.message });
     }
-    setSaving(false);
   }
 
   return (
@@ -306,7 +305,7 @@ function RegistrationConfigCard() {
             variant={regConfig?.enabled === "true" ? "default" : "outline"}
             size="sm"
             onClick={handleToggle}
-            disabled={saving}
+            disabled={setRegConfigMutation.isPending}
           >
             {regConfig?.enabled === "true" ? "已启用" : "已禁用"}
           </Button>
@@ -319,73 +318,53 @@ function RegistrationConfigCard() {
 // ==================== Registry Config ====================
 
 function RegistryConfigCard() {
-  const [registryConfig, setRegistryConfig] = useState<any>(null);
-  const [registries, setRegistries] = useState<any[]>([]);
-  const [saving, setSaving] = useState(false);
+  const { data: registryConfig } = useRegistryConfig();
+  const { data: registries = [] } = useRegistries();
+  const setRegistryConfigMutation = useSetRegistryConfig();
+  const createRegistryMutation = useCreateRegistry();
+  const updateRegistryMutation = useUpdateRegistry();
+  const deleteRegistryMutation = useDeleteRegistry();
   const [newName, setNewName] = useState("");
   const [newUrl, setNewUrl] = useState("");
-  const [adding, setAdding] = useState(false);
   const { toast } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
-  useEffect(() => {
-    api
-      .getRegistryConfig()
-      .then(setRegistryConfig)
-      .catch(() => setRegistryConfig({ enabled: "false" }));
-    api
-      .getRegistries()
-      .then((r) => setRegistries(r || []))
-      .catch(() => {});
-  }, []);
+  const adding = createRegistryMutation.isPending;
 
   async function handleToggleExpose() {
-    setSaving(true);
     try {
       const newEnabled = registryConfig?.enabled === "true" ? "false" : "true";
-      await api.setRegistryConfig({ enabled: newEnabled });
-      setRegistryConfig({ ...registryConfig, enabled: newEnabled });
+      await setRegistryConfigMutation.mutateAsync({ enabled: newEnabled });
       toast({ title: "Registry 配置已保存" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "保存失败", description: e.message });
     }
-    setSaving(false);
   }
 
   async function handleAddRegistry() {
     if (!newName.trim() || !newUrl.trim()) return;
-    setAdding(true);
     try {
-      await api.createRegistry({ name: newName.trim(), url: newUrl.trim() });
+      await createRegistryMutation.mutateAsync({ name: newName.trim(), url: newUrl.trim() });
       setNewName("");
       setNewUrl("");
-      const r = await api.getRegistries();
-      setRegistries(r || []);
       toast({ title: "Registry 已添加" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "添加失败", description: e.message });
     }
-    setAdding(false);
   }
 
   async function handleImportDefault() {
-    setAdding(true);
     try {
-      await api.createRegistry({ name: "OpeniLink Hub", url: "https://hub.openilink.com" });
-      const r = await api.getRegistries();
-      setRegistries(r || []);
+      await createRegistryMutation.mutateAsync({ name: "OpeniLink Hub", url: "https://hub.openilink.com" });
       toast({ title: "已添加官方 Registry" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "添加失败", description: e.message });
     }
-    setAdding(false);
   }
 
   async function handleToggleRegistry(reg: any) {
     try {
-      await api.updateRegistry(reg.id, { enabled: !reg.enabled });
-      const r = await api.getRegistries();
-      setRegistries(r || []);
+      await updateRegistryMutation.mutateAsync({ id: reg.id, data: { enabled: !reg.enabled } });
     } catch (e: any) {
       toast({ variant: "destructive", title: "操作失败", description: e.message });
     }
@@ -400,9 +379,7 @@ function RegistryConfigCard() {
     });
     if (!ok) return;
     try {
-      await api.deleteRegistry(reg.id);
-      const r = await api.getRegistries();
-      setRegistries(r || []);
+      await deleteRegistryMutation.mutateAsync(reg.id);
       toast({ title: "已删除" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "删除失败", description: e.message });
@@ -427,7 +404,7 @@ function RegistryConfigCard() {
             variant={registryConfig?.enabled === "true" ? "default" : "outline"}
             size="sm"
             onClick={handleToggleExpose}
-            disabled={saving}
+            disabled={setRegistryConfigMutation.isPending}
           >
             {registryConfig?.enabled === "true" ? "已启用" : "已禁用"}
           </Button>
@@ -448,7 +425,7 @@ function RegistryConfigCard() {
               )}
             </div>
           ) : (
-            registries.map((reg) => (
+            registries.map((reg: any) => (
               <div
                 key={reg.id}
                 className="flex items-center justify-between p-2.5 rounded-lg border bg-background"
@@ -518,45 +495,37 @@ function RegistryConfigCard() {
 }
 
 function OIDCConfigCard() {
-  const [providers, setProviders] = useState<any[]>([]);
+  const { data: providers = [] } = useOIDCConfig();
+  const setOIDCMutation = useSetOIDCConfig();
+  const deleteOIDCMutation = useDeleteOIDCConfig();
   const [slug, setSlug] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [issuerUrl, setIssuerUrl] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [scopes, setScopes] = useState("");
-  const [adding, setAdding] = useState(false);
   const { toast } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
-  useEffect(() => {
-    loadProviders();
-  }, []);
-
-  async function loadProviders() {
-    try {
-      const data = await api.getOIDCConfig();
-      setProviders(data || []);
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "加载 OIDC 配置失败", description: e.message });
-    }
-  }
+  const adding = setOIDCMutation.isPending;
 
   async function handleAdd() {
     const normalizedSlug = slug.trim();
     if (!normalizedSlug || !issuerUrl.trim() || !clientId.trim()) return;
-    if (providers.some((p) => p.slug === normalizedSlug)) {
+    if (providers.some((p: any) => p.slug === normalizedSlug)) {
       toast({ variant: "destructive", title: "Slug 已存在", description: "请先删除再重新创建。" });
       return;
     }
-    setAdding(true);
     try {
-      await api.setOIDCConfig(normalizedSlug, {
-        display_name: displayName.trim() || normalizedSlug,
-        issuer_url: issuerUrl.trim(),
-        client_id: clientId.trim(),
-        client_secret: clientSecret.trim(),
-        scopes: scopes.trim(),
+      await setOIDCMutation.mutateAsync({
+        slug: normalizedSlug,
+        data: {
+          display_name: displayName.trim() || normalizedSlug,
+          issuer_url: issuerUrl.trim(),
+          client_id: clientId.trim(),
+          client_secret: clientSecret.trim(),
+          scopes: scopes.trim(),
+        },
       });
       setSlug("");
       setDisplayName("");
@@ -564,12 +533,10 @@ function OIDCConfigCard() {
       setClientId("");
       setClientSecret("");
       setScopes("");
-      await loadProviders();
       toast({ title: "OIDC 提供商已添加" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "添加失败", description: e.message });
     }
-    setAdding(false);
   }
 
   async function handleDelete(s: string, name: string) {
@@ -581,8 +548,7 @@ function OIDCConfigCard() {
     });
     if (!ok) return;
     try {
-      await api.deleteOIDCConfig(s);
-      await loadProviders();
+      await deleteOIDCMutation.mutateAsync(s);
       toast({ title: "已删除" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "删除失败", description: e.message });
@@ -602,7 +568,7 @@ function OIDCConfigCard() {
         {/* Existing providers */}
         {providers.length > 0 && (
           <div className="space-y-2">
-            {providers.map((p) => (
+            {providers.map((p: any) => (
               <div
                 key={p.slug}
                 className="flex items-center justify-between p-3 rounded-lg border bg-background"
