@@ -59,10 +59,11 @@ export function ChannelDetailPage() {
 
   const activeTab = location.pathname.split("/").pop() || "overview";
 
-  const { data: bot, isLoading: botLoading } = useBot(botId || "");
-  const { data: channels, isLoading: channelsLoading, refetch: refetchChannels } = useBotChannels(botId || "");
+  const { data: bot, isLoading: botLoading, isError: botError } = useBot(botId || "");
+  const { data: channels, isLoading: channelsLoading, isError: channelsError, refetch: refetchChannels } = useBotChannels(botId || "");
   const channel = (channels || []).find((c: any) => c.id === channelId) || null;
   const loading = botLoading || channelsLoading;
+  const fetchError = botError || channelsError;
 
   function load() {
     refetchChannels();
@@ -108,7 +109,7 @@ export function ChannelDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Info className="h-10 w-10 text-muted-foreground opacity-20 mb-4" />
-        <p className="text-sm font-medium text-muted-foreground">未找到</p>
+        <p className="text-sm font-medium text-muted-foreground">{fetchError ? "加载失败" : "未找到"}</p>
         <Button variant="link" asChild>
           <Link to={`/dashboard/accounts/${botId}/channels`}>返回列表</Link>
         </Button>
@@ -711,7 +712,7 @@ function FilterTab({
 }
 
 function WebhookLogsTab({ channel, botId }: { channel: any; botId: string }) {
-  const { data: logs = [], isLoading: loading, refetch } = useWebhookLogs(botId, channel.id);
+  const { data: logs = [], isLoading: loading, isError: logsError, refetch } = useWebhookLogs(botId, channel.id);
 
   useEffect(() => {
     const t = setInterval(() => refetch(), 5000);
@@ -743,6 +744,12 @@ function WebhookLogsTab({ channel, botId }: { channel: any; botId: string }) {
               <TableRow>
                 <TableCell colSpan={4} className="h-24 text-center">
                   <Loader2 className="h-4 w-4 animate-spin mx-auto opacity-20" />
+                </TableCell>
+              </TableRow>
+            ) : logsError ? (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-destructive italic">
+                  加载失败
                 </TableCell>
               </TableRow>
             ) : logs.length === 0 ? (

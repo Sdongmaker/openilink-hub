@@ -43,8 +43,8 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { data: user, isLoading: userLoading } = useUser();
-  const { data: oauthAccounts = [] } = useOAuthAccounts();
-  const { data: oauthProviders = [] } = useOAuthProviders();
+  const { data: oauthAccounts = [], isError: oauthAccountsError } = useOAuthAccounts();
+  const { data: oauthProviders = [], isError: oauthProvidersError } = useOAuthProviders();
   const unlinkOAuth = useUnlinkOAuth();
   const { theme, setTheme } = useTheme();
   const { confirm, ConfirmDialog } = useConfirm();
@@ -129,7 +129,11 @@ export function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-          {oauthProviders.length > 0 ? (
+          {oauthProvidersError || oauthAccountsError ? (
+            <Card className="border-destructive/20">
+              <CardContent className="p-4 text-sm text-destructive">第三方账号信息加载失败</CardContent>
+            </Card>
+          ) : oauthProviders.length > 0 ? (
             <Card className="border-border/50">
               <CardHeader>
                 <CardTitle>第三方绑定</CardTitle>

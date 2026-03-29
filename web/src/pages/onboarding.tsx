@@ -23,11 +23,11 @@ export function OnboardingPage() {
   const [installedIds, setInstalledIds] = useState<Set<string>>(new Set());
   const [installingId, setInstallingId] = useState<string | null>(null);
 
-  const { data: bot, isLoading: loadingConfig } = useBot(botId || "");
+  const { data: bot, isLoading: loadingConfig, isError: botError } = useBot(botId || "");
   const setBotAI = useSetBotAI();
 
   // Step 2: marketplace apps + installed apps for this bot
-  const { data: apps = [], isLoading: loadingApps } = useApps({ listing: "listed" });
+  const { data: apps = [], isLoading: loadingApps, isError: appsError } = useApps({ listing: "listed" });
   const { data: installedApps } = useBotApps(botId || "");
 
   useEffect(() => {
@@ -68,6 +68,10 @@ export function OnboardingPage() {
   }
 
   if (!botId) return null;
+
+  if (botError || appsError) return (
+    <div className="flex items-center justify-center py-20 text-sm text-destructive">加载失败，请刷新重试</div>
+  );
 
   return (
     <div className="max-w-2xl mx-auto py-12 px-4">
