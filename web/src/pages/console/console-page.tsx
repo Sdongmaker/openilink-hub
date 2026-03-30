@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -52,16 +52,6 @@ export function ConsolePage() {
   const dragDepthRef = useRef(0);
   const stagedPreviewRef = useRef<string | null>(null);
 
-  // Lock parent <main> scroll so console manages its own height
-  useLayoutEffect(() => {
-    const main = document.querySelector("main");
-    if (!main) return;
-    const prev = main.style.overflow;
-    main.style.overflow = "hidden";
-    return () => {
-      main.style.overflow = prev;
-    };
-  }, []);
 
   const fetchData = useCallback(async () => {
     if (!botId) return;
@@ -227,7 +217,8 @@ export function ConsolePage() {
 
   return (
     <div
-      className="relative flex flex-col h-full -m-6 lg:-m-8"
+      data-full-page
+      className="relative flex flex-col h-full"
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

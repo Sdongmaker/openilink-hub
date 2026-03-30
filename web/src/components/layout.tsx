@@ -526,8 +526,8 @@ export function Layout() {
           <SecurityBanner />
         )}
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="h-full mx-auto w-full max-w-[1400px] p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden [&:has([data-full-page])]:overflow-hidden">
+          <div className="h-full mx-auto w-full max-w-[1400px] p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500 [&:has([data-full-page])]:p-0 [&:has([data-full-page])]:max-w-none">
             <Outlet />
           </div>
         </main>
