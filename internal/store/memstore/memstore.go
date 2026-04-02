@@ -379,6 +379,7 @@ func (s *Store) SetAppWebhookVerified(string, bool) error      { return nil }
 func (s *Store) UpdateAppWebhookURL(string, string) error      { return nil }
 func (s *Store) RegenerateInstallationToken(string) (string, error) { return "", errNotImplemented }
 func (s *Store) DeleteInstallation(string) error                    { return nil }
+func (s *Store) DeleteInstallationsByAppID(string) error            { return nil }
 func (s *Store) CreateOAuthCode(string, string, string, string, string) error { return nil }
 func (s *Store) ExchangeOAuthCode(string) (string, string, string, error) {
 	return "", "", "", errNotImplemented

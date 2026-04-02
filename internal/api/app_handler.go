@@ -526,6 +526,12 @@ func (s *Server) handleReviewListing(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "review failed", http.StatusInternalServerError)
 		return
 	}
+	// When rejecting a listing, remove all installations
+	if !req.Approve {
+		if err := s.Store.DeleteInstallationsByAppID(appID); err != nil {
+			slog.Error("failed to delete installations on reject", "app_id", appID, "err", err)
+		}
+	}
 	app, _ := s.Store.GetApp(appID)
 	actorID := auth.UserIDFromContext(r.Context())
 	action := "approve"
@@ -641,6 +647,12 @@ func (s *Server) handleAdminSetListing(w http.ResponseWriter, r *http.Request) {
 		slog.Error("set listing failed", "err", err)
 		jsonError(w, "set listing failed", http.StatusInternalServerError)
 		return
+	}
+	// When unlisting an app, remove all installations so users can re-install after re-listing
+	if req.Listing == "unlisted" {
+		if err := s.Store.DeleteInstallationsByAppID(appID); err != nil {
+			slog.Error("failed to delete installations on delist", "app_id", appID, "err", err)
+		}
 	}
 	slog.Info("admin set listing", "app_id", appID, "listing", req.Listing)
 	app, _ := s.Store.GetApp(appID)

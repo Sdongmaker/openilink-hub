@@ -410,6 +410,11 @@ func (db *DB) DeleteInstallation(id string) error {
 	return err
 }
 
+func (db *DB) DeleteInstallationsByAppID(appID string) error {
+	_, err := db.Exec("DELETE FROM app_installations WHERE app_id = ?", appID)
+	return err
+}
+
 func (db *DB) CreateOAuthCode(code, appID, botID, state, codeChallenge string) error {
 	_, err := db.Exec(`INSERT INTO app_oauth_codes (code, app_id, bot_id, state, code_challenge) VALUES (?,?,?,?,?)`,
 		code, appID, botID, state, codeChallenge)

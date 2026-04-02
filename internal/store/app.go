@@ -101,6 +101,7 @@ type AppStore interface {
 	RegenerateInstallationToken(id string) (string, error)
 	GetInstallationByHandle(botID, handle string) (*AppInstallation, error)
 	DeleteInstallation(id string) error
+	DeleteInstallationsByAppID(appID string) error
 	CreateOAuthCode(code, appID, botID, state, codeChallenge string) error
 	ExchangeOAuthCode(code string) (appID, botID, codeChallenge string, err error)
 	CleanExpiredOAuthCodes()

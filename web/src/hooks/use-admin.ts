@@ -108,7 +108,13 @@ export function useSetAppListing() {
   return useMutation({
     mutationFn: ({ id, listing }: { id: string; listing: string }) =>
       api.setAppListing(id, listing),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.admin.apps() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.admin.apps() });
+      qc.invalidateQueries({ queryKey: queryKeys.marketplace.apps() });
+      qc.invalidateQueries({ queryKey: queryKeys.marketplace.builtin() });
+      qc.invalidateQueries({ queryKey: queryKeys.apps.all({ listing: "listed" }) });
+      qc.invalidateQueries({ queryKey: queryKeys.bots.all() });
+    },
   });
 }
 
@@ -120,6 +126,10 @@ export function useReviewListing() {
     onSuccess: (_data, { appId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.admin.apps() });
       qc.invalidateQueries({ queryKey: queryKeys.apps.reviews(appId) });
+      qc.invalidateQueries({ queryKey: queryKeys.marketplace.apps() });
+      qc.invalidateQueries({ queryKey: queryKeys.marketplace.builtin() });
+      qc.invalidateQueries({ queryKey: queryKeys.apps.all({ listing: "listed" }) });
+      qc.invalidateQueries({ queryKey: queryKeys.bots.all() });
     },
   });
 }
@@ -128,7 +138,13 @@ export function useDeleteAdminApp() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteApp(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.admin.apps() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.admin.apps() });
+      qc.invalidateQueries({ queryKey: queryKeys.marketplace.apps() });
+      qc.invalidateQueries({ queryKey: queryKeys.marketplace.builtin() });
+      qc.invalidateQueries({ queryKey: queryKeys.apps.all({ listing: "listed" }) });
+      qc.invalidateQueries({ queryKey: queryKeys.bots.all() });
+    },
   });
 }
 
