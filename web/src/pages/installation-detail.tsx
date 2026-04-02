@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -217,6 +218,17 @@ export function InstallationDetailPage() {
                   内置应用
                 </Badge>
               ) : null}
+              {app.homepage && app.registry ? (
+                <a
+                  href={app.homepage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  应用主页
+                </a>
+              ) : null}
               <div className="flex items-center gap-2">
                 <Switch
                   checked={enabled}
@@ -314,6 +326,7 @@ export function InstallationDetailPage() {
             <ConfigSection
               inst={inst}
               onUninstall={() => navigate(`/dashboard/accounts/${botId}`)}
+              queryClient={queryClient}
             />
           )}
           {section === "event-logs" && (
@@ -725,7 +738,7 @@ function AppConfigForm({ app, inst, onUpdate }: { app: any; inst: any; onUpdate:
 
 // ==================== Config Section ====================
 
-function ConfigSection({ inst, onUninstall }: { inst: any; onUninstall: () => void }) {
+function ConfigSection({ inst, onUninstall, queryClient }: { inst: any; onUninstall: () => void; queryClient: any }) {
   const { toast } = useToast();
   const [showUninstallDialog, setShowUninstallDialog] = useState(false);
   const [uninstalling, setUninstalling] = useState(false);
@@ -735,6 +748,11 @@ function ConfigSection({ inst, onUninstall }: { inst: any; onUninstall: () => vo
     try {
       await api.deleteInstallation(inst.app_id, inst.id);
       toast({ title: "已卸载" });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bots.apps(inst.bot_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bots.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.apps() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.builtin() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.all({ listing: "listed" }) });
       onUninstall();
     } catch (e: any) {
       toast({ variant: "destructive", title: "卸载失败", description: e.message });
@@ -845,6 +863,17 @@ function EventLogsSection({
           刷新
         </Button>
       </div>
+
+      {/* Show hint when logs contain 403/4xx errors */}
+      {!loading && logs.some((l) => {
+        const code = l.status_code || l.status;
+        return code >= 400 && code < 500;
+      }) && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/30 p-3 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-orange-700 dark:text-orange-400">部分事件投递失败</p>
+          <p>如果应用来自远程市场，4xx 错误通常是远程应用服务器的配置问题。请联系应用开发者确认 Webhook 地址和权限配置是否正确。</p>
+        </div>
+      )}
 
       <Card className="overflow-hidden">
         {loading ? (

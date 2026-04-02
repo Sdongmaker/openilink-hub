@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -62,14 +62,18 @@ const NAV_SECTIONS = [
 export function AppDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { data: app, isError } = useApp(id!);
   const [section, setSection] = useState<SectionKey>("basic-info");
 
+  const isDeveloper = location.pathname.startsWith("/dashboard/developer/");
+  const backPath = isDeveloper ? "/dashboard/developer/apps" : "/dashboard/apps";
+
   // Convenience: invalidate app detail cache after mutations
   const refreshApp = () => queryClient.invalidateQueries({ queryKey: queryKeys.apps.detail(id!) });
 
-  if (isError) { navigate("/dashboard/apps"); return null; }
+  if (isError) { navigate(backPath); return null; }
   if (!app) return null;
 
   return (
@@ -77,7 +81,7 @@ export function AppDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
-          to="/dashboard/apps"
+          to={backPath}
           className="text-muted-foreground hover:text-foreground"
           aria-label="返回我的应用"
         >
@@ -146,7 +150,7 @@ export function AppDetailPage() {
 
         <div className="flex-1 min-w-0">
           {section === "basic-info" && (
-            <BasicInfoSection key={app.updated_at} app={app} onUpdate={refreshApp} />
+            <BasicInfoSection key={app.updated_at} app={app} onUpdate={refreshApp} backPath={backPath} />
           )}
           {section === "install-app" && <InstallAppSection appId={id!} />}
           {section === "distribution" && <DistributionSection app={app} onUpdate={refreshApp} />}
@@ -165,8 +169,9 @@ export function AppDetailPage() {
 
 // ==================== Basic Information (merged Settings + Credentials) ====================
 
-function BasicInfoSection({ app, onUpdate }: { app: any; onUpdate: () => void }) {
+function BasicInfoSection({ app, onUpdate, backPath }: { app: any; onUpdate: () => void; backPath: string }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirm();
   const [form, setForm] = useState({
     name: app.name || "",
@@ -206,7 +211,10 @@ function BasicInfoSection({ app, onUpdate }: { app: any; onUpdate: () => void })
     if (!ok) return;
     try {
       await api.deleteApp(app.id);
-      navigate("/dashboard/apps");
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.apps() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.builtin() });
+      navigate(backPath);
     } catch {}
   }
 
@@ -471,6 +479,7 @@ function InstallAppSection({ appId }: { appId: string }) {
   const [installing, setInstalling] = useState(false);
   const { toast } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const queryClient = useQueryClient();
 
   async function load() {
     try {
@@ -513,6 +522,10 @@ function InstallAppSection({ appId }: { appId: string }) {
       await api.deleteInstallation(appId, instId);
       toast({ title: "已卸载" });
       load();
+      queryClient.invalidateQueries({ queryKey: queryKeys.bots.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.apps() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.builtin() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.all({ listing: "listed" }) });
     } catch (e: any) {
       toast({ variant: "destructive", title: "卸载失败", description: e.message });
     }
