@@ -1935,13 +1935,20 @@ func TestMarketplaceInstalledStatusIsPerUser(t *testing.T) {
 		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 			t.Fatalf("decode marketplace response: %v", err)
 		}
-		if len(body) != 1 {
-			t.Fatalf("expected 1 marketplace app, got %d", len(body))
+		var remote map[string]any
+		for _, app := range body {
+			if slug, _ := app["slug"].(string); slug == "remote-app" {
+				remote = app
+				break
+			}
+		}
+		if remote == nil {
+			t.Fatalf("remote-app not found in marketplace response: %+v", body)
 		}
 
-		gotInstalled, _ := body[0]["installed"].(bool)
+		gotInstalled, _ := remote["installed"].(bool)
 		if gotInstalled != wantInstalled {
-			t.Fatalf("installed = %v, want %v; body = %+v", gotInstalled, wantInstalled, body[0])
+			t.Fatalf("installed = %v, want %v; body = %+v", gotInstalled, wantInstalled, remote)
 		}
 	}
 

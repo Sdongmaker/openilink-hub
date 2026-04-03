@@ -385,9 +385,8 @@ func (s *Store) SetAppWebhookVerified(string, bool) error           { return nil
 func (s *Store) UpdateAppWebhookURL(string, string) error           { return nil }
 func (s *Store) RegenerateInstallationToken(string) (string, error) { return "", errNotImplemented }
 func (s *Store) DeleteInstallation(string) error                    { return nil }
-func (s *Store) DeleteInstallationsByAppID(appID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+
+func (s *Store) deleteInstallationsByAppIDLocked(appID string) {
 	for id, inst := range s.installations {
 		if inst.AppID != appID {
 			continue
@@ -400,6 +399,12 @@ func (s *Store) DeleteInstallationsByAppID(appID string) error {
 			delete(s.handleIndex, inst.BotID+":"+inst.Handle)
 		}
 	}
+}
+
+func (s *Store) DeleteInstallationsByAppID(appID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deleteInstallationsByAppIDLocked(appID)
 	return nil
 }
 func (s *Store) TransitionListingWithCleanup(id, nextListing, rejectReason string) error {
@@ -412,18 +417,7 @@ func (s *Store) TransitionListingWithCleanup(id, nextListing, rejectReason strin
 	}
 	currentListing := app.Listing
 	if currentListing == "listed" && nextListing != "listed" {
-		for instID, inst := range s.installations {
-			if inst.AppID != id {
-				continue
-			}
-			delete(s.installations, instID)
-			if inst.AppToken != "" {
-				delete(s.tokenIndex, inst.AppToken)
-			}
-			if inst.Handle != "" && inst.BotID != "" {
-				delete(s.handleIndex, inst.BotID+":"+inst.Handle)
-			}
-		}
+		s.deleteInstallationsByAppIDLocked(id)
 	}
 	app.Listing = nextListing
 	if nextListing == "rejected" {
