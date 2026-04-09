@@ -21,12 +21,36 @@ jobs:
           username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
+          command_timeout: 10m
           script: |
-            sudo -i bash -c '
-              set -euo pipefail
-              cd /opt/openilink-hub
-              git pull --ff-only
-              docker compose build hub
-              docker compose up -d
-              docker image prune -f
-            '
+            set -euo pipefail
+            cd /opt/openilink-hub
+
+            echo "=== git pull ==="
+            sudo git pull --ff-only
+            echo "HEAD: $(sudo git log --oneline -1)"
+
+            echo "=== docker compose build ==="
+            sudo docker compose build hub 2>&1
+
+            echo "=== docker compose up ==="
+            sudo docker compose up -d 2>&1
+
+            echo "=== waiting for container to start ==="
+            sleep 5
+
+            echo "=== container status ==="
+            sudo docker compose ps
+
+            HEALTH=$(sudo docker compose ps --format json | grep -o '"State":"[^"]*"' | head -1)
+            echo "Hub state: $HEALTH"
+
+            if sudo docker compose ps | grep -q "running"; then
+              echo "=== deploy succeeded ==="
+              sudo docker image prune -f
+            else
+              echo "=== deploy FAILED — container not running ==="
+              echo "=== container logs (last 50 lines) ==="
+              sudo docker compose logs --tail=50 hub
+              exit 1
+            fi
