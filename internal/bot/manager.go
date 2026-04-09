@@ -103,6 +103,7 @@ func (m *Manager) StartBot(ctx context.Context, bot *store.Bot) error {
 	inst.UserID = bot.UserID
 	inst.AIEnabled = bot.AIEnabled
 	inst.AIModel = bot.AIModel
+	inst.OwnerExtID = extractOwnerExtID(bot.Credentials)
 
 	err := p.Start(ctx, provider.StartOptions{
 		Credentials: bot.Credentials,
@@ -129,6 +130,13 @@ func (m *Manager) StartBot(ctx context.Context, bot *store.Bot) error {
 	m.instances[bot.ID] = inst
 	slog.Info("bot started", "bot", bot.ID, "provider", bot.Provider)
 
+	// Auto-join virtual group relay.
+	if emoji, err := m.store.EnsureRelayMember(bot.ID); err != nil {
+		slog.Error("ensure relay member failed", "bot", bot.ID, "err", err)
+	} else {
+		slog.Info("relay member", "bot", bot.ID, "emoji", emoji)
+	}
+
 	// Recover any messages that were stored but not fully processed (e.g. crash).
 	go m.recoverUnprocessed(inst)
 
@@ -149,6 +157,26 @@ func (m *Manager) GetInstance(botDBID string) (*Instance, bool) {
 	defer m.mu.RUnlock()
 	inst, ok := m.instances[botDBID]
 	return inst, ok
+}
+
+// RunningInstances returns a snapshot of all running bot instances.
+func (m *Manager) RunningInstances() []*Instance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*Instance, 0, len(m.instances))
+	for _, inst := range m.instances {
+		out = append(out, inst)
+	}
+	return out
+}
+
+// extractOwnerExtID extracts the provider-specific owner ID from bot credentials.
+func extractOwnerExtID(creds json.RawMessage) string {
+	var c struct {
+		ILinkUserID string `json:"ilink_user_id"`
+	}
+	json.Unmarshal(creds, &c)
+	return c.ILinkUserID
 }
 
 // SetBotAIModel updates the in-memory AIModel for a running bot instance.
@@ -342,6 +370,9 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 		go m.downloadMedia(inst, msg, msgID)
 		rootSpan.AddEvent("media_download_started", nil)
 	}
+
+	// Phase 2: Relay to virtual group (async, does not block delivery)
+	go m.relayToVirtualGroup(inst, msg)
 
 	// Show typing indicator while delivering.
 	typingDone := m.startTyping(inst, msg)

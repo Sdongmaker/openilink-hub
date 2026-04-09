@@ -47,7 +47,9 @@ type MessageStore interface {
 	ListChannelMessages(channelID, sender string, limit int) ([]Message, error)
 	GetMessagesSince(botID string, afterSeq int64, limit int) ([]Message, error)
 	GetLatestContextToken(botID string) string
+	GetLatestContextTokenForTarget(botID, target string) string
 	HasFreshContextToken(botID string, maxAge time.Duration) bool
+	HasFreshContextTokenForTarget(botID, target string, maxAge time.Duration) bool
 	BatchHasFreshContextToken(botIDs []string, maxAge time.Duration) map[string]bool
 	UpdateMediaStatus(botID, status string, keys json.RawMessage) error
 	UpdateMediaStatusByID(id int64, status string, keys json.RawMessage) error

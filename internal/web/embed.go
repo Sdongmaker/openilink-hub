@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 )
 
 //go:embed all:dist
@@ -19,26 +20,38 @@ func Handler() http.Handler {
 		return nil
 	}
 
-	// Check if dist has content
-	entries, _ := fs.ReadDir(sub, ".")
-	if len(entries) == 0 {
+	if !hasVisibleEntries(sub) {
 		return nil
 	}
 
+	return newEmbeddedHandler(sub)
+}
+
+func hasVisibleEntries(sub fs.FS) bool {
+	// Ignore placeholder files used only to satisfy go:embed during backend-only test runs.
+	entries, _ := fs.ReadDir(sub, ".")
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".") && entry.Name() != "placeholder.txt" {
+			return true
+		}
+	}
+	return false
+}
+
+func newEmbeddedHandler(sub fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(sub))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Try to serve the file directly
-		path := r.URL.Path
-		if path == "/" {
-			path = "/index.html"
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		servePath := r.URL.Path
+		if path == "" {
+			servePath = "/"
+		} else if _, err := fs.Stat(sub, path); err != nil {
+			servePath = "/"
 		}
-		if _, err := fs.Stat(sub, path[1:]); err == nil {
-			fileServer.ServeHTTP(w, r)
-			return
-		}
-		// SPA fallback: serve index.html
-		r.URL.Path = "/"
-		fileServer.ServeHTTP(w, r)
+
+		req := r.Clone(r.Context())
+		req.URL.Path = servePath
+		fileServer.ServeHTTP(w, req)
 	})
 }
 

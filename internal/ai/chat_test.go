@@ -34,7 +34,11 @@ func (m *mockMessageStore) GetMessagesSince(_ string, _ int64, _ int) ([]store.M
 	return nil, nil
 }
 func (m *mockMessageStore) GetLatestContextToken(_ string) string                        { return "" }
+func (m *mockMessageStore) GetLatestContextTokenForTarget(_, _ string) string            { return "" }
 func (m *mockMessageStore) HasFreshContextToken(_ string, _ time.Duration) bool          { return false }
+func (m *mockMessageStore) HasFreshContextTokenForTarget(_, _ string, _ time.Duration) bool {
+	return false
+}
 func (m *mockMessageStore) BatchHasFreshContextToken(_ []string, _ time.Duration) map[string]bool {
 	return nil
 }

@@ -121,21 +121,20 @@ func (s *Server) handleChannelSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the bot can send (context_token freshness)
-	if canSend, reason := s.checkSendability(ch.BotID, inst.Status()); !canSend {
-		jsonError(w, reason, http.StatusConflict)
-		return
-	}
-
 	msg, msgType, err := parseSendRequest(r)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	if canSend, reason := s.checkSendabilityForRecipient(ch.BotID, inst.Status(), msg.Recipient); !canSend {
+		jsonError(w, reason, http.StatusConflict)
+		return
+	}
+
 	// Auto-fill context_token from latest message if not provided
 	if msg.ContextToken == "" {
-		msg.ContextToken = s.Store.GetLatestContextToken(ch.BotID)
+		msg.ContextToken = s.latestContextToken(ch.BotID, msg.Recipient)
 	}
 
 	clientID, err := inst.Send(context.Background(), msg)

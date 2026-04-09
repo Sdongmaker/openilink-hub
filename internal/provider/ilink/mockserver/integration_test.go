@@ -355,3 +355,99 @@ func TestHTTPModeMultipleMessages(t *testing.T) {
 		}
 	}
 }
+
+func TestHTTPModeGroupFlow(t *testing.T) {
+	srv := mockserver.NewHTTPServer()
+	url := srv.Start()
+	defer srv.Close()
+
+	srv.Engine().SetToken("test-token")
+	srv.Engine().SetStatus("connected")
+
+	p := &ilinkProvider.Provider{}
+	creds, _ := json.Marshal(ilinkProvider.Credentials{
+		BotToken: "test-token",
+		BaseURL:  url,
+	})
+
+	var received []provider.InboundMessage
+	var mu sync.Mutex
+	receivedCh := make(chan struct{}, 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := p.Start(ctx, provider.StartOptions{
+		Credentials: creds,
+		OnMessage: func(msg provider.InboundMessage) {
+			mu.Lock()
+			received = append(received, msg)
+			mu.Unlock()
+			receivedCh <- struct{}{}
+		},
+		OnStatus:     func(string) {},
+		OnSyncUpdate: func(json.RawMessage) {},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Stop()
+
+	srv.Engine().InjectInbound(mockserver.InboundRequest{
+		Sender:       "member1@wx",
+		Recipient:    "bot@wx",
+		GroupID:      "group-1@chatroom",
+		ContextToken: "ctx-group-1",
+		Text:         "hello group",
+	})
+
+	select {
+	case <-receivedCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for group inbound message")
+	}
+
+	mu.Lock()
+	if len(received) != 1 {
+		mu.Unlock()
+		t.Fatalf("expected 1 received message, got %d", len(received))
+	}
+	msg := received[0]
+	mu.Unlock()
+
+	if msg.GroupID != "group-1@chatroom" {
+		t.Fatalf("wrong group id: got %q, want %q", msg.GroupID, "group-1@chatroom")
+	}
+	if msg.ContextToken != "ctx-group-1" {
+		t.Fatalf("wrong context token: got %q, want %q", msg.ContextToken, "ctx-group-1")
+	}
+	if msg.Sender != "member1@wx" {
+		t.Fatalf("wrong sender: got %q, want %q", msg.Sender, "member1@wx")
+	}
+
+	clientID, err := p.Send(ctx, provider.OutboundMessage{
+		Recipient:    msg.GroupID,
+		Text:         "reply group",
+		ContextToken: msg.ContextToken,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if clientID == "" {
+		t.Fatal("empty client ID from Send")
+	}
+
+	sent := srv.Engine().SentMessages()
+	if len(sent) != 1 {
+		t.Fatalf("expected 1 sent message, got %d", len(sent))
+	}
+	if sent[0].Recipient != "group-1@chatroom" {
+		t.Fatalf("wrong recipient: got %q, want %q", sent[0].Recipient, "group-1@chatroom")
+	}
+	if sent[0].ContextToken != "ctx-group-1" {
+		t.Fatalf("wrong send context token: got %q, want %q", sent[0].ContextToken, "ctx-group-1")
+	}
+	if sent[0].Text != "reply group" {
+		t.Fatalf("wrong sent text: got %q, want %q", sent[0].Text, "reply group")
+	}
+}

@@ -26,12 +26,13 @@ type Store struct {
 	tokenIndex    map[string]string                 // app_token → installation ID
 	handleIndex   map[string]string                 // "botID:handle" → installation ID
 
-	messages  []store.Message
-	msgSeq    atomic.Int64
-	contacts  []store.RecentContact
-	eventLogs []store.AppEventLog
-	logSeq    atomic.Int64
-	apiLogs   []store.AppAPILog
+	messages     []store.Message
+	msgSeq       atomic.Int64
+	contacts     []store.RecentContact
+	eventLogs    []store.AppEventLog
+	logSeq       atomic.Int64
+	apiLogs      []store.AppAPILog
+	relayMembers map[string]string // botID → emoji
 }
 
 // Compile-time check that Store implements store.Store.
@@ -251,8 +252,16 @@ func (s *Store) GetLatestContextToken(botID string) string {
 	return "mock-context-token"
 }
 
+func (s *Store) GetLatestContextTokenForTarget(botID, target string) string {
+	return s.GetLatestContextToken(botID)
+}
+
 func (s *Store) HasFreshContextToken(botID string, maxAge time.Duration) bool {
 	return true
+}
+
+func (s *Store) HasFreshContextTokenForTarget(botID, target string, maxAge time.Duration) bool {
+	return s.HasFreshContextToken(botID, maxAge)
 }
 
 func (s *Store) BatchHasFreshContextToken(botIDs []string, maxAge time.Duration) map[string]bool {
@@ -633,6 +642,63 @@ func (s *Store) UpdateWebhookLogResult(int64, string, string, []string) error   
 func (s *Store) UpdateWebhookLogPluginVersion(int64, string) error                   { return nil }
 func (s *Store) ListWebhookLogs(string, string, int) ([]store.WebhookLog, error)     { return nil, nil }
 func (s *Store) CleanOldWebhookLogs(int) error                                       { return nil }
+
+// --- RelayStore ---
+
+func (s *Store) EnsureRelayMember(botID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.relayMembers == nil {
+		s.relayMembers = make(map[string]string)
+	}
+	if emoji, ok := s.relayMembers[botID]; ok {
+		return emoji, nil
+	}
+	used := make(map[string]bool, len(s.relayMembers))
+	for _, e := range s.relayMembers {
+		used[e] = true
+	}
+	var emoji string
+	for _, e := range store.EmojiPool {
+		if !used[e] {
+			emoji = e
+			break
+		}
+	}
+	if emoji == "" {
+		emoji = fmt.Sprintf("🎯%d", len(s.relayMembers)+1)
+	}
+	s.relayMembers[botID] = emoji
+	return emoji, nil
+}
+
+func (s *Store) GetRelayEmoji(botID string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.relayMembers == nil {
+		return ""
+	}
+	return s.relayMembers[botID]
+}
+
+func (s *Store) ListRelayMembers() ([]store.RelayMember, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var members []store.RelayMember
+	for botID, emoji := range s.relayMembers {
+		members = append(members, store.RelayMember{BotID: botID, Emoji: emoji})
+	}
+	return members, nil
+}
+
+func (s *Store) RemoveRelayMember(botID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.relayMembers != nil {
+		delete(s.relayMembers, botID)
+	}
+	return nil
+}
 
 // --- io.Closer ---
 

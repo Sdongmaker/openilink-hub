@@ -129,12 +129,12 @@ func (s *Server) HandleAppWSSend(conn *app.WSConn, msg map[string]any) {
 	}
 
 	// Check if the bot can send
-	if canSend, reason := s.checkSendability(conn.BotID, botInst.Status()); !canSend {
+	if canSend, reason := s.checkSendabilityForRecipient(conn.BotID, botInst.Status(), to); !canSend {
 		sendErr(reason)
 		return
 	}
 
-	contextToken := s.Store.GetLatestContextToken(conn.BotID)
+	contextToken := s.latestContextToken(conn.BotID, to)
 
 	outMsg := provider.OutboundMessage{
 		Recipient:    to,

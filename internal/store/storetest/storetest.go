@@ -29,6 +29,7 @@ func RunAll(t *testing.T, s store.Store) {
 	t.Run("AppLog", func(t *testing.T) { TestAppLogCRUD(t, s) })
 	t.Run("Session", func(t *testing.T) { TestSessionCRUD(t, s) })
 	t.Run("AppLifecycle", func(t *testing.T) { TestAppLifecycle(t, s) })
+	t.Run("Relay", func(t *testing.T) { TestRelayCRUD(t, s) })
 }
 
 // ---------------------------------------------------------------------------
@@ -675,10 +676,57 @@ func TestMessageCRUD(t *testing.T, s store.Store) {
 		}
 	})
 
+	t.Run("GetLatestContextTokenForTarget", func(t *testing.T) {
+		privateMsgID := int64(2101)
+		if _, err := s.SaveMessage(&store.Message{
+			BotID:        b.ID,
+			Direction:    "inbound",
+			MessageID:    &privateMsgID,
+			FromUserID:   "sender2",
+			ContextToken: "ctx_private_2",
+		}); err != nil {
+			t.Fatalf("SaveMessage private target: %v", err)
+		}
+
+		groupMsgID := int64(2102)
+		if _, err := s.SaveMessage(&store.Message{
+			BotID:        b.ID,
+			Direction:    "inbound",
+			MessageID:    &groupMsgID,
+			FromUserID:   "member1",
+			GroupID:      "msg-group",
+			ContextToken: "ctx_group_1",
+		}); err != nil {
+			t.Fatalf("SaveMessage group target: %v", err)
+		}
+
+		if token := s.GetLatestContextTokenForTarget(b.ID, "sender2"); token != "ctx_private_2" {
+			t.Errorf("private target context_token = %q, want %q", token, "ctx_private_2")
+		}
+		if token := s.GetLatestContextTokenForTarget(b.ID, "msg-group"); token != "ctx_group_1" {
+			t.Errorf("group target context_token = %q, want %q", token, "ctx_group_1")
+		}
+		if token := s.GetLatestContextTokenForTarget(b.ID, "missing-target"); token != "" {
+			t.Errorf("missing target context_token = %q, want empty", token)
+		}
+	})
+
 	t.Run("HasFreshContextToken", func(t *testing.T) {
 		has := s.HasFreshContextToken(b.ID, 1*time.Hour)
 		if !has {
 			t.Error("expected HasFreshContextToken to be true for recently saved message")
+		}
+	})
+
+	t.Run("HasFreshContextTokenForTarget", func(t *testing.T) {
+		if !s.HasFreshContextTokenForTarget(b.ID, "sender2", 1*time.Hour) {
+			t.Error("expected private target to have fresh context token")
+		}
+		if !s.HasFreshContextTokenForTarget(b.ID, "msg-group", 1*time.Hour) {
+			t.Error("expected group target to have fresh context token")
+		}
+		if s.HasFreshContextTokenForTarget(b.ID, "missing-target", 1*time.Hour) {
+			t.Error("missing target should not have fresh context token")
 		}
 	})
 
@@ -2178,6 +2226,84 @@ func TestSessionCRUD(t *testing.T, s store.Store) {
 		_, _, errB := s.GetSession("tok_b")
 		if errA == nil || errB == nil {
 			t.Error("sessions should be deleted by user ID")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Relay
+// ---------------------------------------------------------------------------
+
+func TestRelayCRUD(t *testing.T, s store.Store) {
+	u := mustCreateUser(t, s, "relay_user", "Relay User")
+	creds := json.RawMessage(`{"bot_id":"b1","ilink_user_id":"owner1"}`)
+	bot1, err := s.CreateBot(u.ID, "bot1", "ilink", "b1", creds)
+	if err != nil {
+		t.Fatalf("CreateBot: %v", err)
+	}
+	bot2, err := s.CreateBot(u.ID, "bot2", "ilink", "b2", creds)
+	if err != nil {
+		t.Fatalf("CreateBot: %v", err)
+	}
+
+	t.Run("EnsureRelayMember_Idempotent", func(t *testing.T) {
+		emoji1, err := s.EnsureRelayMember(bot1.ID)
+		if err != nil {
+			t.Fatalf("EnsureRelayMember: %v", err)
+		}
+		if emoji1 == "" {
+			t.Fatal("emoji should not be empty")
+		}
+		// Second call returns the same emoji.
+		emoji2, err := s.EnsureRelayMember(bot1.ID)
+		if err != nil {
+			t.Fatalf("EnsureRelayMember (2nd call): %v", err)
+		}
+		if emoji1 != emoji2 {
+			t.Errorf("idempotent failed: %q != %q", emoji1, emoji2)
+		}
+	})
+
+	t.Run("EmojiUniqueness", func(t *testing.T) {
+		e1, _ := s.EnsureRelayMember(bot1.ID)
+		e2, _ := s.EnsureRelayMember(bot2.ID)
+		if e1 == e2 {
+			t.Errorf("two bots got same emoji: %q", e1)
+		}
+	})
+
+	t.Run("GetRelayEmoji", func(t *testing.T) {
+		emoji := s.GetRelayEmoji(bot1.ID)
+		if emoji == "" {
+			t.Error("expected non-empty emoji")
+		}
+		// Non-existent bot returns empty.
+		if s.GetRelayEmoji("nonexistent") != "" {
+			t.Error("expected empty for unknown bot")
+		}
+	})
+
+	t.Run("ListRelayMembers", func(t *testing.T) {
+		members, err := s.ListRelayMembers()
+		if err != nil {
+			t.Fatalf("ListRelayMembers: %v", err)
+		}
+		if len(members) < 2 {
+			t.Errorf("expected >= 2 members, got %d", len(members))
+		}
+	})
+
+	t.Run("RemoveRelayMember", func(t *testing.T) {
+		if err := s.RemoveRelayMember(bot2.ID); err != nil {
+			t.Fatalf("RemoveRelayMember: %v", err)
+		}
+		if s.GetRelayEmoji(bot2.ID) != "" {
+			t.Error("emoji should be empty after removal")
+		}
+		// Re-joining should give a (possibly different) emoji.
+		_, err := s.EnsureRelayMember(bot2.ID)
+		if err != nil {
+			t.Fatalf("Re-join: %v", err)
 		}
 	})
 }

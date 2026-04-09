@@ -35,5 +35,8 @@ runner.yaml
 
 # Build output
 dist/
+!internal/web/dist/
+internal/web/dist/*
+!internal/web/dist/placeholder.txt
 .worktrees/
 .claude/worktrees/

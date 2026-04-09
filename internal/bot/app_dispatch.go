@@ -252,7 +252,11 @@ func (m *Manager) sendAppResult(inst *Instance, to string, result *appdelivery.D
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	contextToken := m.store.GetLatestContextToken(inst.DBID)
+	contextToken := m.store.GetLatestContextTokenForTarget(inst.DBID, to)
+	if contextToken == "" {
+		slog.Warn("app reply skipped: no context token for target", "bot", inst.DBID, "to", to)
+		return
+	}
 
 	switch result.ReplyType {
 	case "image", "video", "file", "voice":

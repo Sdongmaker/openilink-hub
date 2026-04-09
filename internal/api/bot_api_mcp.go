@@ -140,12 +140,12 @@ func (s *Server) mcpSendMessage(ctx context.Context, req mcp.CallToolRequest) (*
 		return mcp.NewToolResultError("bot not connected"), nil
 	}
 
-	if canSend, reason := s.checkSendability(inst.BotID, botInst.Status()); !canSend {
+	if canSend, reason := s.checkSendabilityForRecipient(inst.BotID, botInst.Status(), to); !canSend {
 		return mcp.NewToolResultError(reason), nil
 	}
 
 	traceID := generateTraceID()
-	contextToken := s.Store.GetLatestContextToken(inst.BotID)
+	contextToken := s.latestContextToken(inst.BotID, to)
 
 	// Build outbound message
 	outMsg := provider.OutboundMessage{

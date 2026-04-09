@@ -104,10 +104,43 @@ func checkSendStatus(status string, hasFreshToken bool) (bool, string) {
 	return true, ""
 }
 
+func missingContextReason(recipient string) string {
+	if recipient != "" {
+		return "暂无法发送：需要先收到该会话消息"
+	}
+	return "暂无法发送：需要先收到用户消息"
+}
+
+func (s *Server) latestContextToken(botID, recipient string) string {
+	if recipient == "" {
+		return s.Store.GetLatestContextToken(botID)
+	}
+	return s.Store.GetLatestContextTokenForTarget(botID, recipient)
+}
+
+func (s *Server) hasFreshContextToken(botID, recipient string) bool {
+	if recipient == "" {
+		return s.Store.HasFreshContextToken(botID, contextTokenMaxAge)
+	}
+	return s.Store.HasFreshContextTokenForTarget(botID, recipient, contextTokenMaxAge)
+}
+
 // checkSendability queries the DB and returns send capability for a single bot.
 func (s *Server) checkSendability(botID, status string) (bool, string) {
-	hasFresh := s.Store.HasFreshContextToken(botID, contextTokenMaxAge)
-	return checkSendStatus(status, hasFresh)
+	return s.checkSendabilityForRecipient(botID, status, "")
+}
+
+func (s *Server) checkSendabilityForRecipient(botID, status, recipient string) (bool, string) {
+	if status == "session_expired" {
+		return false, "会话已过期，请先在微信中发送一条消息以恢复连接，若仍无法恢复请重新扫码绑定"
+	}
+	if status != "connected" {
+		return false, "Bot 未连接"
+	}
+	if !s.hasFreshContextToken(botID, recipient) {
+		return false, missingContextReason(recipient)
+	}
+	return true, ""
 }
 
 func (s *Server) handleBindStart(w http.ResponseWriter, r *http.Request) {
@@ -390,21 +423,21 @@ func (s *Server) handleBotSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	canSend, reason := s.checkSendability(botID, inst.Status())
-	if !canSend {
-		jsonError(w, reason, http.StatusConflict)
-		return
-	}
-
 	msg, msgType, err := parseSendRequest(r)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	canSend, reason := s.checkSendabilityForRecipient(botID, inst.Status(), msg.Recipient)
+	if !canSend {
+		jsonError(w, reason, http.StatusConflict)
+		return
+	}
+
 	// Auto-fill context_token from latest message if not provided
 	if msg.ContextToken == "" {
-		msg.ContextToken = s.Store.GetLatestContextToken(botID)
+		msg.ContextToken = s.latestContextToken(botID, msg.Recipient)
 	}
 
 	clientID, err := inst.Send(r.Context(), msg)

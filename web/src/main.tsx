@@ -29,6 +29,7 @@ import { OnboardingPage } from "./pages/onboarding";
 import { InstallationDetailPage } from "./pages/installation-detail";
 import { InstallAppPage } from "./pages/install-app";
 import { DeveloperAppsPage } from "./pages/developer-apps";
+import { JoinPage } from "./pages/join";
 
 function RouterProgress() {
   useAnchorProgress({ startOnLoad: false });
@@ -48,6 +49,7 @@ createRoot(document.getElementById("root")!).render(
             <Routes>
               {/* Public Entry */}
               <Route path="/" element={<HomePage />} />
+              <Route path="/join" element={<JoinPage />} />
               <Route path="/login" element={<LoginPage />} />
 
               {/* Main Application Shell */}

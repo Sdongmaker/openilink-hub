@@ -8,12 +8,13 @@ import (
 
 // Instance wraps a provider with its lifecycle.
 type Instance struct {
-	DBID      string
-	UserID    string
-	Provider  provider.Provider
-	AIEnabled bool
-	AIModel   string
-	cancel    context.CancelFunc
+	DBID         string
+	UserID       string
+	OwnerExtID   string // provider-specific owner ID (e.g. ilink_user_id)
+	Provider     provider.Provider
+	AIEnabled    bool
+	AIModel      string
+	cancel       context.CancelFunc
 }
 
 func NewInstance(dbID string, p provider.Provider) *Instance {

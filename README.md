@@ -332,6 +332,94 @@ go build -o oih .
 ./oih
 ```
 
+### 从源码直接运行（开发）
+
+当前仓库可以分两种方式跑：
+
+#### 1. 只跑后端 / API
+
+适合先验证 Bot、消息分发、微信 Provider、Webhook / WS 通道。
+
+```bash
+go run .
+```
+
+- 默认监听 `:9800`
+- 默认使用 SQLite
+- macOS 数据目录：`~/Library/Application Support/openilink-hub`
+- 如果还没构建前端，`/` 会返回 `404`，但 `/api/*`、`/bot/*`、`/mcp` 这些接口都能正常用
+
+常用环境变量：
+
+```bash
+LISTEN=:9800
+DATABASE_URL=postgres://...
+RP_ORIGIN=http://localhost:9800
+RP_ID=localhost
+SECRET=change-me
+```
+
+#### 2. 跑完整 Web 控制台
+
+前端目录在 `web/`，仓库使用 `pnpm@10.32.1`。如果本机没有 `pnpm` 命令，可以直接用 Corepack：
+
+```bash
+corepack enable
+corepack prepare pnpm@10.32.1 --activate
+
+cd web
+pnpm install
+pnpm run build
+cd ..
+
+go run .
+```
+
+构建完成后，后端会自动服务内嵌前端，浏览器打开 `http://localhost:9800` 即可。
+
+#### 3. 前端单独开发
+
+```bash
+corepack enable
+corepack prepare pnpm@10.32.1 --activate
+
+cd web
+pnpm install
+pnpm run dev
+```
+
+这适合改 React 页面；后端仍然单独用 `go run .` 启动。
+
+### 微信侧测试（当前阶段）
+
+当前已补到以下验证：
+
+- 私聊 / 群聊目标会分别取各自最新 `context_token`
+- 群消息入站会保留 `group_id`
+- 群消息出站会带上匹配的 `context_token`
+- 所有 recipient-aware 发送入口都已切到“按目标会话取 token”
+
+直接跑当前仓库全部测试：
+
+```bash
+go test ./...
+```
+
+如果只想跑微信侧相关测试：
+
+```bash
+go test ./internal/provider/ilink/mockserver -v
+go test ./internal/store/sqlite ./internal/store/postgres -v
+```
+
+如果要跑根目录那批依赖 PostgreSQL 的集成测试，先启动测试库：
+
+```bash
+docker compose -f docker-compose.test.yml up -d --wait
+TEST_DATABASE_URL=postgres://openilink:openilink@localhost:15432/openilink_test?sslmode=disable go test . -v
+docker compose -f docker-compose.test.yml down -v
+```
+
 ## CLI 命令
 
 | 命令 | 说明 |
