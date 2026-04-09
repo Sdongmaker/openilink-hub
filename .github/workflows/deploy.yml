@@ -45,7 +45,7 @@ jobs:
             HEALTH=$(sudo docker compose ps --format json | grep -o '"State":"[^"]*"' | head -1)
             echo "Hub state: $HEALTH"
 
-            if sudo docker compose ps | grep -q "running"; then
+            if echo "$HEALTH" | grep -q '"State":"running"'; then
               echo "=== deploy succeeded ==="
               sudo docker image prune -f
             else
