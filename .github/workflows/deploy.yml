@@ -21,7 +21,6 @@ jobs:
           username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
-          script_stop: true
           script: |
             sudo -i bash -c '
               set -euo pipefail
