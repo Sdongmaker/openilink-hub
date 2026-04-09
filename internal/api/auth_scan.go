@@ -212,7 +212,7 @@ func (s *Server) completeScanLogin(result *provider.BindPollResult, sendEvent fu
 	// Login: create session — send token via WS (can't set cookie on WS)
 	sessionToken, _ := auth.CreateSession(s.Store, user.ID)
 
-	resp := map[string]any{"status": "connected", "bot_id": bot.ID, "session_token": sessionToken, "is_new": isNew}
+	resp := map[string]any{"status": "connected", "bot_id": bot.ID, "session_token": sessionToken, "is_new": isNew, "role": user.Role}
 	j, _ := json.Marshal(resp)
 	sendEvent("status", string(j))
 }

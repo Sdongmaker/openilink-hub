@@ -278,6 +278,12 @@ export function Layout() {
   }, [isError, navigate]);
 
   useEffect(() => {
+    if (user && user.role !== "admin" && user.role !== "superadmin") {
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
     api.info().then((data) => setVersion(data.version || "")).catch(() => {});
   }, []);
 

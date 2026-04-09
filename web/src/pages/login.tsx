@@ -126,7 +126,12 @@ export function LoginPage() {
             document.cookie = `session=${d.session_token}; path=/; max-age=${7*24*3600}; samesite=lax`;
           }
           ws.close();
-          navigate(d.is_new && d.bot_id ? `/dashboard/onboarding?bot_id=${d.bot_id}` : "/dashboard");
+          const isAdmin = d.role === "admin" || d.role === "superadmin";
+          if (!isAdmin) {
+            navigate("/");
+          } else {
+            navigate(d.is_new && d.bot_id ? `/dashboard/onboarding?bot_id=${d.bot_id}` : "/dashboard");
+          }
         }
       } else if (d.event === "error") {
         settled = true;
@@ -160,7 +165,9 @@ export function LoginPage() {
       } else {
         await api.login(username, password);
       }
-      navigate("/dashboard");
+      const me = await api.me();
+      const isAdmin = me.role === "admin" || me.role === "superadmin";
+      navigate(isAdmin ? "/dashboard" : "/");
     } catch (err: any) {
       setError(err.message);
     }
@@ -226,7 +233,9 @@ export function LoginPage() {
         const data = await res.json();
         throw new Error(data.error || "登录失败");
       }
-      navigate("/dashboard");
+      const me = await api.me();
+      const isAdmin = me.role === "admin" || me.role === "superadmin";
+      navigate(isAdmin ? "/dashboard" : "/");
     } catch (err: any) {
       if (err.name !== "NotAllowedError") setError(err.message || "Passkey 登录失败");
     }

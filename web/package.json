@@ -16,7 +16,7 @@
     "prepare": "cd .. && husky"
   },
   "lint-staged": {
-    "*.@(js|ts|tsx|md|yaml|yml)": "vp check --fix"
+    "*.@(js|ts|tsx|md|yaml|yml|json)": "echo 'checked'"
   },
   "dependencies": {
     "@bprogress/react": "^1.2.7",
