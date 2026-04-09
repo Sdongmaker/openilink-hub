@@ -171,40 +171,52 @@ type RelayStore interface {
 
 ## CI/CD：自动构建与部署
 
-### 现有流程
+### 部署方式：服务器上源码构建
 
-项目已有 `.github/workflows/release.yml`，由 tag (`v*`) 或 `workflow_dispatch` 触发：
+不推送 Docker Hub，直接在目标服务器 `/opt/openilink-hub` 上 `git pull` + `docker compose build` + `docker compose up -d`。
 
-```
-tag push → frontend build → darwin binaries → GoReleaser:
-  → linux amd64/arm64 binaries
-  → Docker multi-arch images → push to GHCR + Docker Hub
-  → GitHub Release with checksums
-```
+### 新增 GitHub Actions workflow
 
-镜像命名：`docker.io/openilink/openilink-hub:{version}` 和 `ghcr.io/openilink/openilink-hub:{version}`
-
-### 新增：自动部署到目标服务器
-
-在现有 `release` job 之后新增 `deploy` job：
+新增 `.github/workflows/deploy.yml`（独立于现有 release.yml）：
 
 ```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
   deploy:
-    needs: release
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
+          username: ubuntu
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
           script: |
-            cd /opt/openilink-hub
-            docker compose pull hub
-            docker compose up -d hub
-            docker image prune -f
+            sudo -i bash -c '
+              cd /opt/openilink-hub
+              git pull --ff-only
+              docker compose build hub
+              docker compose up -d
+              docker image prune -f
+            '
+```
+
+### 部署流程（服务器端执行的步骤）
+
+```
+SSH 以 ubuntu 登录 → sudo -i 切换 root →
+  cd /opt/openilink-hub →
+  git pull --ff-only →         # 拉取最新代码
+  docker compose build hub →   # 从源码构建镜像（Dockerfile 含 frontend + backend）
+  docker compose up -d →       # 重建 hub 容器，Postgres/MinIO 不受影响
+  docker image prune -f        # 清理旧镜像
 ```
 
 ### 所需 GitHub Secrets
@@ -212,40 +224,61 @@ tag push → frontend build → darwin binaries → GoReleaser:
 | Secret | 说明 |
 |--------|------|
 | `DEPLOY_HOST` | 目标服务器 IP 或域名 |
-| `DEPLOY_USER` | SSH 用户名 |
-| `DEPLOY_SSH_KEY` | SSH 私钥（Ed25519 推荐） |
-| `DOCKERHUB_USERNAME` | Docker Hub 用户名（已有） |
-| `DOCKERHUB_TOKEN` | Docker Hub Token（已有） |
+| `DEPLOY_SSH_KEY` | SSH 私钥（Ed25519 推荐），对应 ubuntu 用户的 authorized_keys |
+
+SSH 用户固定为 `ubuntu`，端口 22。
+
+### 配置文件
+
+新增 `.env.example` 到 git 作为示例，服务器上 `cp .env.example .env` 后填写实际值。
+
+docker compose 自动加载同目录下的 `.env` 文件。
+
+```env
+# .env.example — 复制为 .env 并填写实际值
+
+# --- Postgres ---
+PASSWORD=change-me-strong-password
+
+# --- Hub ---
+HUB_PORT=9800
+RP_ORIGIN=https://your-domain.com
+RP_ID=your-domain.com
+SECRET=change-me-random-string
+
+# --- Storage (MinIO) ---
+# 使用 docker-compose.yml 内置 MinIO 时无需额外配置
+# 如需公开访问媒体文件：
+# STORAGE_PUBLIC_URL=https://s3.your-domain.com/openilink
+
+# --- OAuth (可选) ---
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
+# LINUXDO_CLIENT_ID=
+# LINUXDO_CLIENT_SECRET=
+```
 
 ### 服务器端前置条件
 
 1. 安装 Docker + Docker Compose
-2. `/opt/openilink-hub/docker-compose.yml` 使用项目的 `docker-compose.yml`，`hub` 服务的 `image` 改为 `docker.io/openilink/openilink-hub:latest`（替代 `build: .`）
-3. 配置 `.env` 文件（DATABASE_URL、STORAGE 等环境变量）
-4. SSH 用户有 docker 组权限（`sudo usermod -aG docker $USER`）
+2. `/opt/openilink-hub` 已 `git clone` 项目源码
+3. `cp .env.example .env` 并填写配置
+4. ubuntu 用户有 sudo 免密权限（默认 Ubuntu 云主机已有）
+5. 首次启动：`sudo -i` → `cd /opt/openilink-hub` → `docker compose up -d`
 
-### 服务器端 docker-compose.yml 差异
+### 触发策略
 
-```yaml
-# 仅 hub 服务改动，其他不变
-hub:
-  image: docker.io/openilink/openilink-hub:latest  # 替代 build: .
-  restart: unless-stopped  # 改为 unless-stopped
-  # 其余 ports、environment、depends_on 保持不变
-```
-
-### 部署策略
-
-- **仅 tag 触发部署** — `workflow_dispatch`（snapshot）不部署
-- **滚动更新** — `docker compose up -d` 自动替换容器，Postgres/MinIO 不受影响
-- **回滚** — 手动 SSH 执行 `docker compose pull hub` 指定旧版本 tag
+- **push 到 main 分支** — 自动部署（开发阶段快速迭代）
+- **workflow_dispatch** — 手动触发部署
+- 后续稳定后可改为仅 tag 触发
 
 ### 文件变更
 
 | 文件 | 变更 |
 |------|------|
-| `.github/workflows/release.yml` | 新增 `deploy` job |
-| `docker-compose.prod.yml`（新增） | 生产用 compose 文件（image 替代 build） |
+| `.github/workflows/deploy.yml`（新增） | 自动部署 workflow |
+| `.env.example`（新增） | 环境变量示例文件 |
+| `.gitignore` | 添加 `.env` 防止泄露 |
 
 ## 测试策略
 
