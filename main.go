@@ -101,10 +101,9 @@ func main() {
 		slog.Error("seed builtin apps failed", "err", err)
 	}
 
-	// Seed default admin if no users exist and ADMIN_PASSWORD is set
+	// Seed default admin if ADMIN_PASSWORD is set and admin user doesn't exist
 	if cfg.AdminPassword != "" {
-		count, _ := s.UserCount()
-		if count == 0 {
+		if _, err := s.GetUserByUsername(cfg.AdminUsername); err != nil {
 			hash := auth.HashPassword(cfg.AdminPassword)
 			if _, err := s.CreateUserFull(cfg.AdminUsername, "", cfg.AdminUsername, hash, store.RoleSuperAdmin); err != nil {
 				slog.Error("seed default admin failed", "err", err)
