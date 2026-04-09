@@ -169,6 +169,84 @@ type RelayStore interface {
 |------|------|
 | `web/src/App.tsx`（或路由文件） | 注册 `/join` 路由 |
 
+## CI/CD：自动构建与部署
+
+### 现有流程
+
+项目已有 `.github/workflows/release.yml`，由 tag (`v*`) 或 `workflow_dispatch` 触发：
+
+```
+tag push → frontend build → darwin binaries → GoReleaser:
+  → linux amd64/arm64 binaries
+  → Docker multi-arch images → push to GHCR + Docker Hub
+  → GitHub Release with checksums
+```
+
+镜像命名：`docker.io/openilink/openilink-hub:{version}` 和 `ghcr.io/openilink/openilink-hub:{version}`
+
+### 新增：自动部署到目标服务器
+
+在现有 `release` job 之后新增 `deploy` job：
+
+```yaml
+  deploy:
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/openilink-hub
+            docker compose pull hub
+            docker compose up -d hub
+            docker image prune -f
+```
+
+### 所需 GitHub Secrets
+
+| Secret | 说明 |
+|--------|------|
+| `DEPLOY_HOST` | 目标服务器 IP 或域名 |
+| `DEPLOY_USER` | SSH 用户名 |
+| `DEPLOY_SSH_KEY` | SSH 私钥（Ed25519 推荐） |
+| `DOCKERHUB_USERNAME` | Docker Hub 用户名（已有） |
+| `DOCKERHUB_TOKEN` | Docker Hub Token（已有） |
+
+### 服务器端前置条件
+
+1. 安装 Docker + Docker Compose
+2. `/opt/openilink-hub/docker-compose.yml` 使用项目的 `docker-compose.yml`，`hub` 服务的 `image` 改为 `docker.io/openilink/openilink-hub:latest`（替代 `build: .`）
+3. 配置 `.env` 文件（DATABASE_URL、STORAGE 等环境变量）
+4. SSH 用户有 docker 组权限（`sudo usermod -aG docker $USER`）
+
+### 服务器端 docker-compose.yml 差异
+
+```yaml
+# 仅 hub 服务改动，其他不变
+hub:
+  image: docker.io/openilink/openilink-hub:latest  # 替代 build: .
+  restart: unless-stopped  # 改为 unless-stopped
+  # 其余 ports、environment、depends_on 保持不变
+```
+
+### 部署策略
+
+- **仅 tag 触发部署** — `workflow_dispatch`（snapshot）不部署
+- **滚动更新** — `docker compose up -d` 自动替换容器，Postgres/MinIO 不受影响
+- **回滚** — 手动 SSH 执行 `docker compose pull hub` 指定旧版本 tag
+
+### 文件变更
+
+| 文件 | 变更 |
+|------|------|
+| `.github/workflows/release.yml` | 新增 `deploy` job |
+| `docker-compose.prod.yml`（新增） | 生产用 compose 文件（image 替代 build） |
+
 ## 测试策略
 
 ### Store 层
