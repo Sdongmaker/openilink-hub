@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import {
-  ArrowRight,
   CheckCircle2,
   EyeOff,
   Loader2,
@@ -17,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import { useUser } from "@/hooks/use-auth";
+
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { cn } from "../lib/utils";
@@ -72,16 +70,12 @@ const whisperSamples = [
 ];
 
 export function JoinPage() {
-  const { data: user } = useUser();
   const [qrUrl, setQrUrl] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "wait" | "scanned" | "connected" | "error">("idle");
   const [message, setMessage] = useState("");
-  const [canOpenConsole, setCanOpenConsole] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedRef = useRef(false);
-
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   useEffect(() => {
     if (!startedRef.current) {
@@ -112,7 +106,6 @@ export function JoinPage() {
     setStatus("loading");
     setMessage("正在为你打开入口...");
     setQrUrl("");
-    setCanOpenConsole(false);
     try {
       const res = await fetch("/api/auth/scan/start", {
         method: "POST",
@@ -153,7 +146,6 @@ export function JoinPage() {
           if (d.session_token) {
             document.cookie = `session=${d.session_token}; path=/; max-age=${7 * 24 * 3600}; samesite=lax`;
           }
-          setCanOpenConsole(d.role === "admin" || d.role === "superadmin");
           ws.close();
           setStatus("connected");
           setMessage("你已经进入今晚的树洞");
@@ -201,13 +193,7 @@ export function JoinPage() {
             </div>
             今晚的树洞
           </div>
-          {(isAdmin || canOpenConsole) && (
-            <Link to="/dashboard">
-              <Button variant="ghost" size="sm" className="gap-1.5 rounded-full px-3 text-white/70 hover:bg-white/[0.08] hover:text-white">
-                控制台 <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </Link>
-          )}
+
         </div>
       </header>
 
@@ -314,32 +300,19 @@ export function JoinPage() {
                     <div className="space-y-2">
                       <h3 className="text-2xl font-medium text-white">你已经在里面了</h3>
                       <p className="text-sm leading-7 text-white/[0.62]">
-                        现在回到微信，给刚刚绑定的那个 Bot 发第一句话。
-                        其他参与者只会看到系统分配给你的匿名符号，不会看到你的昵称和头像。
+                        回到微信，对刚绑定的 Bot 说句话就好。
+                        其他人只会看到你的匿名符号。
                       </p>
                     </div>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-emerald-300/[0.14] bg-emerald-400/[0.08] p-4 text-sm leading-7 text-white/[0.72]">
-                    适合从一句很轻的话开始。比如：我想说点心事，今晚有人在吗？
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <Button
-                      variant="outline"
-                      onClick={startScan}
-                      className="flex-1 rounded-full border-white/[0.14] bg-white/[0.04] text-white hover:bg-white/[0.08] hover:text-white"
-                    >
-                      重新生成入口
-                    </Button>
-                    {canOpenConsole && (
-                      <Link to="/dashboard" className="flex-1">
-                        <Button className="w-full rounded-full bg-emerald-400 text-slate-950 hover:bg-emerald-300">
-                          进入控制台
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={startScan}
+                    className="w-full rounded-full border-white/[0.14] bg-white/[0.04] text-white hover:bg-white/[0.08] hover:text-white"
+                  >
+                    重新绑定
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-5">

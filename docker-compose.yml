@@ -9,6 +9,8 @@
 #   SECRET             - token encryption key (must change!)
 #   RP_ORIGIN / RP_ID  - WebAuthn origin and relying party ID
 #   HUB_PORT           - hub listen port on host (default: 9800)
+#   ADMIN_USERNAME     - default admin username (default: admin)
+#   ADMIN_PASSWORD     - default admin password (required for auto-seed)
 
 services:
   hub:

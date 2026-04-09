@@ -22,6 +22,10 @@ type Config struct {
 	StoragePublicURL string
 	StoragePath      string // local filesystem path (used when S3 is not configured)
 
+	// Default admin account (seeded on first run if no users exist)
+	AdminUsername string
+	AdminPassword string
+
 	// OAuth providers
 	GitHubClientID     string
 	GitHubClientSecret string
@@ -45,6 +49,9 @@ func Parse() *Config {
 	cfg.StorageSSL = envOr("STORAGE_SSL", "") == "true"
 	cfg.StoragePublicURL = envOr("STORAGE_PUBLIC_URL", "")
 	cfg.StoragePath = envOr("STORAGE_PATH", "")
+	// Default admin
+	cfg.AdminUsername = envOr("ADMIN_USERNAME", "admin")
+	cfg.AdminPassword = envOr("ADMIN_PASSWORD", "")
 	// OAuth
 	cfg.GitHubClientID = envOr("GITHUB_CLIENT_ID", "")
 	cfg.GitHubClientSecret = envOr("GITHUB_CLIENT_SECRET", "")
