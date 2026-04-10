@@ -12,21 +12,21 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
-	appdelivery "github.com/openilink/openilink-hub/internal/app"
 	"github.com/openilink/openilink-hub/internal/api"
+	appdelivery "github.com/openilink/openilink-hub/internal/app"
 	"github.com/openilink/openilink-hub/internal/auth"
 	"github.com/openilink/openilink-hub/internal/bot"
 	"github.com/openilink/openilink-hub/internal/builtin"
 	"github.com/openilink/openilink-hub/internal/config"
 	"github.com/openilink/openilink-hub/internal/daemon"
 	"github.com/openilink/openilink-hub/internal/push"
+	"github.com/openilink/openilink-hub/internal/registry"
 	"github.com/openilink/openilink-hub/internal/relay"
 	"github.com/openilink/openilink-hub/internal/sink"
+	"github.com/openilink/openilink-hub/internal/storage"
 	"github.com/openilink/openilink-hub/internal/store"
 	"github.com/openilink/openilink-hub/internal/store/postgres"
 	"github.com/openilink/openilink-hub/internal/store/sqlite"
-	"github.com/openilink/openilink-hub/internal/registry"
-	"github.com/openilink/openilink-hub/internal/storage"
 
 	// Register providers
 	_ "github.com/openilink/openilink-hub/internal/provider/ilink"
@@ -144,13 +144,14 @@ func main() {
 
 	// Server components
 	srv := &api.Server{
-		Store:        s,
-		WebAuthn:     wa,
-		SessionStore: auth.NewSessionStore(),
-		Config:       cfg,
-		OAuthStates:  api.SetupOAuth(cfg),
-		Registry:     regClient,
-		Version:      version,
+		Store:          s,
+		WebAuthn:       wa,
+		SessionStore:   auth.NewSessionStore(),
+		Config:         cfg,
+		OnboardingOnly: true,
+		OAuthStates:    api.SetupOAuth(cfg),
+		Registry:       regClient,
+		Version:        version,
 	}
 
 	// Storage (optional): S3 > local FS > proxy fallback
@@ -200,12 +201,9 @@ func main() {
 	srv.PushHub = push.NewHub()
 	mgr.SetAppWSHub(srv.AppWSHub)
 	mgr.SetPushHub(srv.PushHub)
-	mgr.SetRelayAdminHub(bot.NewRelayAdminHub())
 
-	// Start all saved bots
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-	mgr.StartAll(ctx)
 
 	// Periodic cleanup
 	go func() {

@@ -4,10 +4,10 @@ import (
 	"net/http"
 
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/openilink/openilink-hub/internal/app"
 	"github.com/openilink/openilink-hub/internal/auth"
 	"github.com/openilink/openilink-hub/internal/bot"
 	"github.com/openilink/openilink-hub/internal/config"
-	"github.com/openilink/openilink-hub/internal/app"
 	"github.com/openilink/openilink-hub/internal/push"
 	"github.com/openilink/openilink-hub/internal/registry"
 	"github.com/openilink/openilink-hub/internal/relay"
@@ -17,18 +17,19 @@ import (
 )
 
 type Server struct {
-	Store        store.Store
-	WebAuthn     *webauthn.WebAuthn
-	SessionStore *auth.SessionStore
-	BotManager   *bot.Manager
-	Hub          *relay.Hub
-	Config       *config.Config
-	OAuthStates  *oauthStateStore
-	ObjectStore  storage.Store // optional
-	Registry     *registry.Client
-	AppWSHub     *app.WSHub
-	PushHub      *push.Hub
-	Version      string
+	Store          store.Store
+	WebAuthn       *webauthn.WebAuthn
+	SessionStore   *auth.SessionStore
+	BotManager     *bot.Manager
+	Hub            *relay.Hub
+	Config         *config.Config
+	OnboardingOnly bool
+	OAuthStates    *oauthStateStore
+	ObjectStore    storage.Store // optional
+	Registry       *registry.Client
+	AppWSHub       *app.WSHub
+	PushHub        *push.Hub
+	Version        string
 }
 
 func cors(next http.Handler) http.Handler {
@@ -50,6 +51,14 @@ func cors(next http.Handler) http.Handler {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	if s.OnboardingOnly {
+		mux.HandleFunc("POST /api/public/astrbot/onboard/start", s.handleAstrBotPublicOnboardStart)
+		mux.HandleFunc("GET /api/public/astrbot/onboard/status/{platformID}", s.handleAstrBotPublicOnboardStatus)
+		if handler := web.Handler(); handler != nil {
+			mux.Handle("/", handler)
+		}
+		return recovery(requestLogger(cors(mux)))
+	}
 
 	// --- Public auth ---
 	mux.HandleFunc("POST /api/auth/register", s.handlePasswordRegister)
@@ -69,9 +78,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/auth/oidc/{slug}", s.handleOIDCLogin)
 	mux.HandleFunc("GET /api/auth/oidc/{slug}/callback", s.handleOIDCCallback)
 
-	// --- iLink scan login: scan QR to register + login + bind bot ---
-	mux.HandleFunc("POST /api/auth/scan/start", s.handleScanLoginStart)
-	mux.HandleFunc("GET /api/auth/scan/status/{sessionID}", s.handleScanLoginStatus)
+	// --- Public AstrBot onboarding ---
+	mux.HandleFunc("POST /api/public/astrbot/onboard/start", s.handleAstrBotPublicOnboardStart)
+	mux.HandleFunc("GET /api/public/astrbot/onboard/status/{platformID}", s.handleAstrBotPublicOnboardStatus)
 
 	// --- Public info ---
 	mux.HandleFunc("GET /api/info", s.handleInfo)
@@ -80,7 +89,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/webhook-plugins", s.handleListPlugins)
 	mux.HandleFunc("GET /api/webhook-plugins/{id}", s.handleGetPlugin)
 	mux.HandleFunc("GET /api/webhook-plugins/{id}/versions", s.handlePluginVersions)
-
 
 	// --- OAuth complete (popup callback page, no auth needed) ---
 	mux.HandleFunc("GET /oauth/complete", s.handleOAuthComplete)
@@ -231,16 +239,6 @@ func (s *Server) Handler() http.Handler {
 	// --- Admin: system config ---
 	protected.HandleFunc("GET /api/admin/config/oauth", s.requireAdmin(s.handleGetOAuthConfig))
 
-	// --- Admin: relay (virtual group) ---
-	protected.HandleFunc("GET /api/admin/relay/messages", s.requireAdmin(s.handleRelayMessages))
-	protected.HandleFunc("GET /api/admin/relay/members", s.requireAdmin(s.handleRelayMembers))
-	protected.HandleFunc("DELETE /api/admin/relay/members/{botID}", s.requireAdmin(s.handleRemoveRelayMember))
-	protected.HandleFunc("GET /api/admin/relay/stats", s.requireAdmin(s.handleRelayStats))
-	protected.HandleFunc("GET /api/admin/relay/ws", s.requireAdmin(s.handleRelayWS))
-
-	// --- Admin: AstrBot proxy ---
-	protected.HandleFunc("/api/admin/astrbot/", s.requireAdmin(s.handleAstrBotProxy))
-
 	protected.HandleFunc("PUT /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleSetOAuthConfig))
 	protected.HandleFunc("DELETE /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleDeleteOAuthConfig))
 	protected.HandleFunc("GET /api/admin/config/oidc", s.requireAdmin(s.handleGetOIDCConfig))
@@ -276,8 +274,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/bot/", s.appTokenAuth(botAPI))
 
 	// WebSocket endpoints (auth via query param, outside appTokenAuth)
-	mux.HandleFunc("GET /bot/v1/ws", s.handleBotAPIWebSocket)          // per-installation
-	mux.HandleFunc("GET /bot/v1/app/ws", s.handleAppLevelWebSocket)    // per-app (all installations)
+	mux.HandleFunc("GET /bot/v1/ws", s.handleBotAPIWebSocket)       // per-installation
+	mux.HandleFunc("GET /bot/v1/app/ws", s.handleAppLevelWebSocket) // per-app (all installations)
 
 	// MCP endpoint (app_token auth, stateless streamable HTTP)
 	mux.Handle("/mcp", s.setupMCP())

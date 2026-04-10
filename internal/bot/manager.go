@@ -141,13 +141,6 @@ func (m *Manager) StartBot(ctx context.Context, bot *store.Bot) error {
 	m.instances[bot.ID] = inst
 	slog.Info("bot started", "bot", bot.ID, "provider", bot.Provider)
 
-	// Auto-join virtual group relay.
-	if emoji, err := m.store.EnsureRelayMember(bot.ID); err != nil {
-		slog.Error("ensure relay member failed", "bot", bot.ID, "err", err)
-	} else {
-		slog.Info("relay member", "bot", bot.ID, "emoji", emoji)
-	}
-
 	// Recover any messages that were stored but not fully processed (e.g. crash).
 	go m.recoverUnprocessed(inst)
 
@@ -381,12 +374,6 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 		go m.downloadMedia(inst, msg, msgID)
 		rootSpan.AddEvent("media_download_started", nil)
 	}
-
-	// Phase 2: Relay to virtual group (async, does not block delivery)
-	// Deep-copy msg so relay reads original Media.EncryptQueryParam/AESKey
-	// before downloadMedia goroutine overwrites Media.URL with proxy URL.
-	relayMsg := relayDeepCopyMsg(msg)
-	go m.relayToVirtualGroup(inst, relayMsg)
 
 	// Show typing indicator while delivering.
 	typingDone := m.startTyping(inst, msg)
