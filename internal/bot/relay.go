@@ -11,11 +11,10 @@ import (
 )
 
 const (
-	relayWorkerCount = 10
-	relayMaxRetries  = 3
-	relaySendTimeout = 30 * time.Second
-	// Files larger than 5MB are cached to storage and read per-worker
-	// to avoid holding a large []byte in memory during the entire fan-out.
+	relayWorkerCount        = 10
+	relayMaxRetries         = 3
+	relayDownloadTimeout    = 60 * time.Second  // CDN download can be slow for large files
+	relaySendTimeout        = 120 * time.Second // CDN upload needs 60s × 3 retries internally
 	relayLargeFileThreshold = 5 * 1024 * 1024
 )
 
@@ -101,8 +100,19 @@ func (m *Manager) relayToVirtualGroup(inst *Instance, msg provider.InboundMessag
 		}
 	}
 
+	relayStart := time.Now()
+	slog.Info("中转开始", "bot", inst.DBID, "emoji", senderEmoji,
+		"类型", contentType, "目标数", len(validTargets), "msg_id", relayMsgID)
+
 	// Download media ONCE from source provider.
 	mediaData, fileName := m.relayDownloadOnce(inst, msg)
+
+	if mediaData != nil {
+		slog.Info("中转媒体就绪", "bot", inst.DBID,
+			"文件", fileName, "大小", len(mediaData),
+			"MB", fmt.Sprintf("%.2f", float64(len(mediaData))/1024/1024),
+			"下载耗时ms", time.Since(relayStart).Milliseconds())
+	}
 
 	// If media is large, cache to storage so workers read from disk/S3
 	// instead of holding the full []byte in memory during the entire fan-out.
@@ -111,21 +121,25 @@ func (m *Manager) relayToVirtualGroup(inst *Instance, msg provider.InboundMessag
 		key := fmt.Sprintf("relay/%d/%d", time.Now().UnixMilli(), relayMsgID)
 		contentType := "application/octet-stream"
 		if _, err := m.storage.Put(context.Background(), key, contentType, mediaData); err != nil {
-			slog.Warn("relay cache to storage failed, using in-memory", "err", err)
+			slog.Warn("中转缓存到存储失败，使用内存", "err", err)
 		} else {
+			slog.Info("中转已缓存到存储", "key", key, "大小", len(mediaData))
 			cacheKey = key
 			mediaData = nil // release memory; workers will read from storage
 		}
 	}
 
 	// Worker pool fan-out.
+	fanOutStart := time.Now()
 	m.relayFanOut(inst, validTargets, msg, senderEmoji, mediaData, fileName, relayMsgID, cacheKey)
+
+	slog.Info("中转完成", "bot", inst.DBID, "msg_id", relayMsgID,
+		"目标数", len(validTargets), "分发耗时ms", time.Since(fanOutStart).Milliseconds(),
+		"总耗时ms", time.Since(relayStart).Milliseconds())
 
 	// Clean up storage cache after all sends complete.
 	if cacheKey != "" && m.storage != nil {
-		// Best-effort cleanup; if it fails, the file will be orphaned.
-		// A periodic cleanup job can handle this.
-		slog.Debug("relay cache cleanup", "key", cacheKey)
+		slog.Debug("中转缓存清理", "key", cacheKey)
 	}
 }
 
@@ -208,14 +222,23 @@ func (m *Manager) relayDownloadOnce(src *Instance, msg provider.InboundMessage) 
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), relaySendTimeout)
+		slog.Info("中转下载开始", "bot", src.DBID, "类型", item.Type,
+			"有EQP", item.Media.EncryptQueryParam != "",
+			"有AES", item.Media.AESKey != "",
+			"有URL", item.Media.URL != "",
+			"文件大小", item.Media.FileSize)
+
+		ctx, cancel := context.WithTimeout(context.Background(), relayDownloadTimeout)
 		defer cancel()
+
+		dlStart := time.Now()
 
 		switch item.Type {
 		case "image", "video", "file":
 			downloaded, err := src.Provider.DownloadMedia(ctx, item.Media)
 			if err != nil {
-				slog.Error("relay download-once failed", "bot", src.DBID, "type", item.Type, "err", err)
+				slog.Error("中转下载失败", "bot", src.DBID, "类型", item.Type,
+					"耗时ms", time.Since(dlStart).Milliseconds(), "err", err)
 				return nil, ""
 			}
 			fn := item.FileName
@@ -229,14 +252,21 @@ func (m *Manager) relayDownloadOnce(src *Instance, msg provider.InboundMessage) 
 					fn = "file"
 				}
 			}
+			slog.Info("中转下载完成", "bot", src.DBID, "类型", item.Type,
+				"文件", fn, "大小", len(downloaded),
+				"耗时ms", time.Since(dlStart).Milliseconds())
 			return downloaded, fn
 
 		case "voice":
 			downloaded, err := src.Provider.DownloadVoice(ctx, item.Media, 0)
 			if err != nil {
-				slog.Error("relay download-once voice failed", "bot", src.DBID, "err", err)
+				slog.Error("中转语音下载失败", "bot", src.DBID,
+					"耗时ms", time.Since(dlStart).Milliseconds(), "err", err)
 				return nil, ""
 			}
+			slog.Info("中转下载完成", "bot", src.DBID, "类型", "voice",
+				"文件", "voice.wav", "大小", len(downloaded),
+				"耗时ms", time.Since(dlStart).Milliseconds())
 			return downloaded, "voice.wav"
 		}
 	}
@@ -265,7 +295,7 @@ func (m *Manager) relayFanOut(src *Instance, targets []*Instance, msg provider.I
 				if cacheKey != "" && m.storage != nil {
 					data, err := m.storage.Get(context.Background(), cacheKey)
 					if err != nil {
-						slog.Error("relay worker read cache failed", "key", cacheKey, "err", err)
+						slog.Error("中转读取缓存失败", "key", cacheKey, "err", err)
 						// workerMedia stays nil → will send text fallback
 					} else {
 						workerMedia = data
@@ -288,7 +318,7 @@ func (m *Manager) relayFanOut(src *Instance, targets []*Instance, msg provider.I
 func (m *Manager) relaySendWithRetry(src, dst *Instance, msg provider.InboundMessage, emoji string, mediaData []byte, fileName string, relayMsgID int64) {
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("relay send panic", "src", src.DBID, "dst", dst.DBID, "err", r)
+			slog.Error("中转发送异常", "src", src.DBID, "dst", dst.DBID, "err", r)
 		}
 	}()
 
@@ -302,8 +332,14 @@ func (m *Manager) relaySendWithRetry(src, dst *Instance, msg provider.InboundMes
 			m.store.UpdateRelayDelivery(relayMsgID, dst.DBID, "sending", attempt+1, "")
 		}
 
+		sendStart := time.Now()
 		err := m.relaySendOnce(src, dst, msg, emoji, mediaData, fileName)
+		sendDur := time.Since(sendStart)
+
 		if err == nil {
+			slog.Info("中转发送成功", "src", src.DBID, "dst", dst.DBID,
+				"尝试次数", attempt+1, "耗时ms", sendDur.Milliseconds(),
+				"有媒体", mediaData != nil, "文件", fileName)
 			if relayMsgID > 0 {
 				m.store.UpdateRelayDelivery(relayMsgID, dst.DBID, "done", attempt+1, "")
 			}
@@ -311,11 +347,13 @@ func (m *Manager) relaySendWithRetry(src, dst *Instance, msg provider.InboundMes
 		}
 
 		lastErr = err
-		slog.Warn("relay send attempt failed", "src", src.DBID, "dst", dst.DBID, "attempt", attempt+1, "err", err)
+		slog.Warn("中转发送失败", "src", src.DBID, "dst", dst.DBID,
+			"尝试次数", attempt+1, "耗时ms", sendDur.Milliseconds(),
+			"有媒体", mediaData != nil, "文件", fileName, "err", err)
 	}
 
 	// All retries exhausted.
-	slog.Error("relay send failed after retries", "src", src.DBID, "dst", dst.DBID, "err", lastErr)
+	slog.Error("中转发送全部重试失败", "src", src.DBID, "dst", dst.DBID, "err", lastErr)
 	if relayMsgID > 0 {
 		errMsg := ""
 		if lastErr != nil {
