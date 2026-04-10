@@ -17,6 +17,26 @@ export interface Bot {
   owner_name?: string;
 }
 
+// --- AstrBot external service types ---
+export interface AstrBotBot {
+  platform_id: string;
+  runtime_status: "running" | "pending" | "error" | "stopped" | "unknown";
+  qr_status: "wait" | "confirmed" | "expired" | null;
+  configured: boolean;
+}
+
+export interface AstrBotQR {
+  platform_id: string;
+  status: "initializing" | "wait" | "confirmed" | "expired";
+  qr_url?: string;
+}
+
+export interface AstrBotGroupStatus {
+  active: boolean;
+  member_count: number;
+  online_count: number;
+}
+
 export interface RelayMessage {
   id: number;
   source_bot_id: string;
@@ -333,4 +353,19 @@ export const api = {
   removeRelayMember: (botID: string) =>
     request(`/api/admin/relay/members/${botID}`, { method: "DELETE" }),
   relayStats: () => request<RelayStats>("/api/admin/relay/stats"),
+
+  // --- AstrBot external service (proxied via Hub backend) ---
+  astrBotHealth: () => request<{ status: string }>("/api/admin/astrbot/health"),
+  astrBotCreateBot: () =>
+    request<{ platform_id: string }>("/api/admin/astrbot/bot/create", { method: "POST" }),
+  astrBotGetQR: (platformId: string) =>
+    request<AstrBotQR>(`/api/admin/astrbot/bot/${encodeURIComponent(platformId)}/qr`),
+  astrBotListBots: () =>
+    request<{ bots: AstrBotBot[] }>("/api/admin/astrbot/bot/list"),
+  astrBotDeleteBot: (platformId: string) =>
+    request(`/api/admin/astrbot/bot/${encodeURIComponent(platformId)}`, { method: "DELETE" }),
+  astrBotSendGroupMessage: (text: string) =>
+    request("/api/admin/astrbot/group/send", { method: "POST", body: JSON.stringify({ text }) }),
+  astrBotGroupStatus: () =>
+    request<AstrBotGroupStatus>("/api/admin/astrbot/group/status"),
 };

@@ -32,6 +32,7 @@ import { DeveloperAppsPage } from "./pages/developer-apps";
 import { JoinPage } from "./pages/join";
 import { AdminRelayPage } from "./pages/admin-relay";
 import { AdminRelayMembersPage } from "./pages/admin-relay-members";
+import { AdminAstrBotPage } from "./pages/admin-astrbot";
 
 function RouterProgress() {
   useAnchorProgress({ startOnLoad: false });
@@ -84,6 +85,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="admin/reviews" element={<AdminReviewsPage />} />
                 <Route path="admin/relay" element={<AdminRelayPage />} />
                 <Route path="admin/relay/members" element={<AdminRelayMembersPage />} />
+                <Route path="admin/astrbot" element={<AdminAstrBotPage />} />
                 <Route path="settings" element={<SettingsPage />}>
                   <Route index element={<Navigate to="profile" replace />} />
                   <Route path="profile" element={null} />

@@ -237,6 +237,10 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("DELETE /api/admin/relay/members/{botID}", s.requireAdmin(s.handleRemoveRelayMember))
 	protected.HandleFunc("GET /api/admin/relay/stats", s.requireAdmin(s.handleRelayStats))
 	protected.HandleFunc("GET /api/admin/relay/ws", s.requireAdmin(s.handleRelayWS))
+
+	// --- Admin: AstrBot proxy ---
+	protected.HandleFunc("/api/admin/astrbot/", s.requireAdmin(s.handleAstrBotProxy))
+
 	protected.HandleFunc("PUT /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleSetOAuthConfig))
 	protected.HandleFunc("DELETE /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleDeleteOAuthConfig))
 	protected.HandleFunc("GET /api/admin/config/oidc", s.requireAdmin(s.handleGetOIDCConfig))

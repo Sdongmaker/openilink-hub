@@ -25,6 +25,7 @@ import {
   Code2,
   ShieldAlert,
   Radio,
+  Unplug,
   X,
 } from "lucide-react";
 import { api, botDisplayName } from "../lib/api";
@@ -100,6 +101,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   onboarding: "引导",
   relay: "虚拟群组",
   members: "群组成员",
+  astrbot: "外部 Bot",
 };
 
 // Intermediate-only segments that are NOT standalone routes.
@@ -476,6 +478,23 @@ export function Layout() {
                           isActive={isActive("/dashboard/admin/relay/members")}
                         >
                           <Link to="/dashboard/admin/relay/members">群组成员</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton isActive={isActive("/dashboard/admin/astrbot")} tooltip="外部 Bot">
+                      <Unplug />
+                      <span>外部 Bot</span>
+                    </SidebarMenuButton>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          size="sm"
+                          isActive={location.pathname === "/dashboard/admin/astrbot"}
+                        >
+                          <Link to="/dashboard/admin/astrbot">Bot 管理</Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>

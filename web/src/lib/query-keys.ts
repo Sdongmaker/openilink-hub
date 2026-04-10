@@ -47,6 +47,9 @@ export const queryKeys = {
     relayMessages: (cursor?: string) => ["admin", "relay-messages", cursor] as const,
     relayMembers: () => ["admin", "relay-members"] as const,
     relayStats: () => ["admin", "relay-stats"] as const,
+    astrBotBots: () => ["admin", "astrbot-bots"] as const,
+    astrBotHealth: () => ["admin", "astrbot-health"] as const,
+    astrBotGroupStatus: () => ["admin", "astrbot-group-status"] as const,
   },
 
   config: {

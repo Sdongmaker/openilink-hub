@@ -31,6 +31,10 @@ type Config struct {
 	GitHubClientSecret string
 	LinuxDoClientID     string
 	LinuxDoClientSecret string
+
+	// AstrBot external service
+	AstrBotURL       string // e.g. "http://localhost:6196"
+	AstrBotJWTSecret string
 }
 
 func Parse() *Config {
@@ -57,6 +61,9 @@ func Parse() *Config {
 	cfg.GitHubClientSecret = envOr("GITHUB_CLIENT_SECRET", "")
 	cfg.LinuxDoClientID = envOr("LINUXDO_CLIENT_ID", "")
 	cfg.LinuxDoClientSecret = envOr("LINUXDO_CLIENT_SECRET", "")
+	// AstrBot
+	cfg.AstrBotURL = envOr("ASTRBOT_URL", "")
+	cfg.AstrBotJWTSecret = envOr("ASTRBOT_JWT_SECRET", "")
 	flag.Parse()
 	return cfg
 }
