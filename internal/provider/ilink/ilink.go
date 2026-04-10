@@ -477,7 +477,14 @@ func convertItem(item ilink.MessageItem) *provider.MessageItem {
 		}
 
 	default:
-		return nil
+		// 未知消息类型（如微信表情 [阴险] 等），降级为文本转发
+		slog.Debug("ilink: 未知消息类型，降级为文本", "type", item.Type)
+		mi.Type = "text"
+		if item.TextItem != nil && item.TextItem.Text != "" {
+			mi.Text = item.TextItem.Text
+		} else {
+			mi.Text = "[表情]"
+		}
 	}
 
 	// Convert referenced/quoted message

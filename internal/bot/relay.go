@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,9 +17,23 @@ const (
 	relayDownloadTimeout    = 60 * time.Second  // CDN download can be slow for large files
 	relaySendTimeout        = 120 * time.Second // CDN upload needs 60s × 3 retries internally
 	relayLargeFileThreshold = 5 * 1024 * 1024
+	relayCDNMaxConcurrent   = 2 // 限制同时上传 CDN 的并发数，避免打爆微信 CDN
 )
 
 var relayRetryDelays = []time.Duration{0, 5 * time.Second, 30 * time.Second}
+
+// relayCDNSem 全局 CDN 上传信号量，限制并发上传数。
+var relayCDNSem = make(chan struct{}, relayCDNMaxConcurrent)
+
+// relayNonRetryableErr 判断错误是否不可重试（重试也不会成功）。
+func relayNonRetryableErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "no cached context token") ||
+		strings.Contains(s, "user must send a message first")
+}
 
 // relayDeepCopyMsg deep-copies an InboundMessage so that relay reads
 // the original Media.EncryptQueryParam/AESKey fields. Without this copy,
@@ -350,6 +365,12 @@ func (m *Manager) relaySendWithRetry(src, dst *Instance, msg provider.InboundMes
 		slog.Warn("中转发送失败", "src", src.DBID, "dst", dst.DBID,
 			"尝试次数", attempt+1, "耗时ms", sendDur.Milliseconds(),
 			"有媒体", mediaData != nil, "文件", fileName, "err", err)
+
+		// 不可重试的错误立即终止，不浪费时间重试
+		if relayNonRetryableErr(err) {
+			slog.Warn("中转跳过重试（不可恢复错误）", "src", src.DBID, "dst", dst.DBID, "err", err)
+			break
+		}
 	}
 
 	// All retries exhausted.
@@ -406,6 +427,12 @@ func (m *Manager) relaySendOnce(src, dst *Instance, msg provider.InboundMessage,
 				}
 				continue
 			}
+			// 获取 CDN 上传信号量，限制全局并发
+			select {
+			case relayCDNSem <- struct{}{}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 			_, err := dst.Provider.Send(ctx, provider.OutboundMessage{
 				Recipient:    ownerID,
 				Text:         emoji + " | " + quotePrefix,
@@ -413,6 +440,7 @@ func (m *Manager) relaySendOnce(src, dst *Instance, msg provider.InboundMessage,
 				FileName:     fileName,
 				ContextToken: ctxToken,
 			})
+			<-relayCDNSem // 释放信号量
 			if err != nil {
 				return err
 			}
@@ -429,12 +457,19 @@ func (m *Manager) relaySendOnce(src, dst *Instance, msg provider.InboundMessage,
 				}
 				continue
 			}
+			// 获取 CDN 上传信号量，限制全局并发
+			select {
+			case relayCDNSem <- struct{}{}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 			_, err := dst.Provider.Send(ctx, provider.OutboundMessage{
 				Recipient:    ownerID,
 				Data:         mediaData,
 				FileName:     "voice.wav",
 				ContextToken: ctxToken,
 			})
+			<-relayCDNSem // 释放信号量
 			if err != nil {
 				return err
 			}
