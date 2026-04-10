@@ -153,9 +153,15 @@ export function JoinPage() {
       className="relative min-h-[100dvh] w-full bg-[#050505] text-emerald-50 overflow-hidden selection:bg-emerald-500/30"
       style={{ perspective: "1000px" }}
     >
-      {/* Outer Static Camera Body */}
+      {/* Mobile-only lightweight background (prevents GPU crash from massive 3D layers) */}
+      <div className="fixed inset-0 z-0 pointer-events-none lg:hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(16,185,129,0.15)_0%,_transparent_70%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#059669_1px,transparent_1px),linear-gradient(to_bottom,#059669_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-[0.08]" />
+      </div>
+
+      {/* Outer Static Camera Body — desktop only (4 panels need >512MB GPU memory) */}
       <div 
-        className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#010202] will-change-transform"
+        className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#010202] hidden lg:block"
         style={{ perspective: "1000px", contain: "layout style paint" }}
       >
         {/* Inner 3D World (Rotated by mouse) */}
@@ -215,7 +221,7 @@ export function JoinPage() {
             </div>
 
             <div className="space-y-8 animate-[fade-in_1.2s_ease-out]">
-              <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9]" style={{ fontFamily: "'Noto Serif SC Variable', serif" }}>
+              <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9]" style={{ fontFamily: "'Noto Serif SC Variable', serif" }}>
                 <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-emerald-200 to-emerald-900 drop-shadow-[0_0_30px_rgba(16,185,129,0.5)]">星空</span><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-300">树洞</span><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-emerald-400">.</span>
               </h1>
               <p className="text-xl leading-relaxed text-emerald-100/70 font-light mix-blend-screen max-w-md border-l-4 border-emerald-500 pl-4">
