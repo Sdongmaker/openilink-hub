@@ -383,7 +383,10 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 	}
 
 	// Phase 2: Relay to virtual group (async, does not block delivery)
-	go m.relayToVirtualGroup(inst, msg)
+	// Deep-copy msg so relay reads original Media.EncryptQueryParam/AESKey
+	// before downloadMedia goroutine overwrites Media.URL with proxy URL.
+	relayMsg := relayDeepCopyMsg(msg)
+	go m.relayToVirtualGroup(inst, relayMsg)
 
 	// Show typing indicator while delivering.
 	typingDone := m.startTyping(inst, msg)

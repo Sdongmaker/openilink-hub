@@ -21,6 +21,31 @@ const (
 
 var relayRetryDelays = []time.Duration{0, 5 * time.Second, 30 * time.Second}
 
+// relayDeepCopyMsg deep-copies an InboundMessage so that relay reads
+// the original Media.EncryptQueryParam/AESKey fields. Without this copy,
+// the concurrent downloadMedia goroutine may overwrite Media.URL with a
+// Hub proxy URL, causing the SDK to prefer FullURL → 401 Unauthorized.
+func relayDeepCopyMsg(src provider.InboundMessage) provider.InboundMessage {
+	dst := src
+	dst.Items = make([]provider.MessageItem, len(src.Items))
+	for i, item := range src.Items {
+		dst.Items[i] = item
+		if item.Media != nil {
+			copy := *item.Media
+			dst.Items[i].Media = &copy
+		}
+		if item.RefMsg != nil {
+			rc := *item.RefMsg
+			if rc.Item.Media != nil {
+				mc := *rc.Item.Media
+				rc.Item.Media = &mc
+			}
+			dst.Items[i].RefMsg = &rc
+		}
+	}
+	return dst
+}
+
 // relayToVirtualGroup forwards an inbound message from one bot's owner
 // to all other running bot instances in the virtual group relay.
 // Uses download-once + worker pool fan-out for scalability.
@@ -136,11 +161,43 @@ func relayContentSummary(msg provider.InboundMessage) (contentType, content stri
 				}
 			}
 		}
+		// Note quoted/referenced messages.
+		if item.RefMsg != nil && content == "" {
+			content = "[引用] " + relayRefSummary(item.RefMsg)
+		}
 	}
 	if content == "" {
 		content = "[消息]"
 	}
 	return
+}
+
+// relayRefSummary returns a short text summary of a RefMsg for display.
+func relayRefSummary(ref *provider.RefMsg) string {
+	if ref.Title != "" {
+		return ref.Title
+	}
+	switch ref.Item.Type {
+	case "text":
+		runes := []rune(ref.Item.Text)
+		if len(runes) > 30 {
+			return string(runes[:30]) + "..."
+		}
+		return ref.Item.Text
+	case "image":
+		return "[图片]"
+	case "voice":
+		return "[语音]"
+	case "video":
+		return "[视频]"
+	case "file":
+		if ref.Item.FileName != "" {
+			return ref.Item.FileName
+		}
+		return "[文件]"
+	default:
+		return "[消息]"
+	}
 }
 
 // relayDownloadOnce downloads media from the source provider once for all targets.
@@ -276,10 +333,19 @@ func (m *Manager) relaySendOnce(src, dst *Instance, msg provider.InboundMessage,
 	ownerID := dst.OwnerExtID
 	ctxToken := m.store.GetLatestContextTokenForTarget(dst.DBID, ownerID)
 
+	// Build quote prefix once if present (applies to the whole message).
+	var quotePrefix string
+	for _, item := range msg.Items {
+		if item.RefMsg != nil {
+			quotePrefix = "「" + relayRefSummary(item.RefMsg) + "」\n"
+			break
+		}
+	}
+
 	for _, item := range msg.Items {
 		switch item.Type {
 		case "text":
-			text := emoji + " | " + item.Text
+			text := emoji + " | " + quotePrefix + item.Text
 			_, err := dst.Provider.Send(ctx, provider.OutboundMessage{
 				Recipient:    ownerID,
 				Text:         text,
@@ -294,7 +360,7 @@ func (m *Manager) relaySendOnce(src, dst *Instance, msg provider.InboundMessage,
 				// Download failed earlier; send text fallback.
 				_, err := dst.Provider.Send(ctx, provider.OutboundMessage{
 					Recipient:    ownerID,
-					Text:         emoji + " | [" + item.Type + "]",
+					Text:         emoji + " | " + quotePrefix + "[" + item.Type + "]",
 					ContextToken: ctxToken,
 				})
 				if err != nil {
@@ -304,7 +370,7 @@ func (m *Manager) relaySendOnce(src, dst *Instance, msg provider.InboundMessage,
 			}
 			_, err := dst.Provider.Send(ctx, provider.OutboundMessage{
 				Recipient:    ownerID,
-				Text:         emoji,
+				Text:         emoji + " | " + quotePrefix,
 				Data:         mediaData,
 				FileName:     fileName,
 				ContextToken: ctxToken,
@@ -317,7 +383,7 @@ func (m *Manager) relaySendOnce(src, dst *Instance, msg provider.InboundMessage,
 			if mediaData == nil {
 				_, err := dst.Provider.Send(ctx, provider.OutboundMessage{
 					Recipient:    ownerID,
-					Text:         emoji + " | [语音]",
+					Text:         emoji + " | " + quotePrefix + "[语音]",
 					ContextToken: ctxToken,
 				})
 				if err != nil {
