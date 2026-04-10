@@ -1,73 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import QRCode from "qrcode";
-import {
-  Bot,
-  CheckCircle2,
-  Loader2,
-  QrCode,
-  RefreshCw,
-  ScanLine,
-  ShieldCheck,
-  TriangleAlert,
-} from "lucide-react";
-
-import { Button } from "../components/ui/button";
-import { Card } from "../components/ui/card";
+import { Lock, Shield, Wind, Loader2, CheckCircle2, Moon } from "lucide-react";
 import { api, type AstrBotOnboardState } from "../lib/api";
 
 type ViewState = "idle" | "loading" | "waiting" | "success" | "error";
-
 const successStatuses = new Set(["confirmed", "connected", "configured"]);
-
-function statusMessage(status: string, isMobile: boolean) {
-  switch (status) {
-    case "initializing":
-      return "正在初始化 AstrBot 二维码...";
-    case "qr_pending":
-      return "记录已创建，正在等待二维码就绪...";
-    case "expired":
-      return "二维码已过期，正在尝试刷新...";
-    case "wait":
-      return isMobile ? "请长按识别二维码" : "请使用微信扫码完成接入";
-    default:
-      return isMobile ? "请长按识别二维码" : "请使用微信扫码完成接入";
-  }
-}
 
 function QrCanvas({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
-
   useEffect(() => {
     if (!value || !ref.current) return;
-    QRCode.toCanvas(ref.current, value, { width: 260, margin: 1 });
+    QRCode.toCanvas(ref.current, value, {
+      width: 220,
+      margin: 2,
+      color: { dark: "#064e3b", light: "#ffffff00" }, // emerald-900 and transparent
+    });
   }, [value]);
-
-  return <canvas ref={ref} className="block rounded-3xl" />;
-}
-
-function QrDisplay({ value }: { value: string }) {
-  const [mode, setMode] = useState<"image" | "canvas">("image");
-
-  useEffect(() => {
-    if (value.startsWith("data:image/") || value.startsWith("http://") || value.startsWith("https://")) {
-      setMode("image");
-      return;
-    }
-    setMode("canvas");
-  }, [value]);
-
-  if (mode === "image") {
-    return (
-      <img
-        src={value}
-        alt="AstrBot onboarding QR"
-        className="h-[260px] w-[260px] rounded-3xl border border-black/5 bg-white object-contain p-3"
-        onError={() => setMode("canvas")}
-      />
-    );
-  }
-
-  return <QrCanvas value={value} />;
+  return (
+    <canvas
+      ref={ref}
+      className="relative z-10 rounded-2xl drop-shadow-sm transition-transform duration-500 hover:scale-[1.02]"
+    />
+  );
 }
 
 export function JoinPage() {
@@ -76,12 +30,60 @@ export function JoinPage() {
   const [qrUrl, setQrUrl] = useState("");
   const [message, setMessage] = useState("");
   const [upstreamStatus, setUpstreamStatus] = useState("initializing");
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedRef = useRef(false);
-  const [isMobile, setIsMobile] = useState(false);
+
+  // 3D Card Hover Effect State
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [rotateX, setRotateX] = useState(0);
+  const [rotateY, setRotateY] = useState(0);
+
+  // Global mouse tracking for background tunnel
+  const bgRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let rafId: number;
+    const handleMouse = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2;
+      const y = (e.clientY / window.innerHeight - 0.5) * 2;
+      rafId = requestAnimationFrame(() => {
+        if (bgRef.current) {
+          // Adjust rotation bounds for a smoother tunnel feel, pushing camera deeper via translateZ
+          bgRef.current.style.transform = `rotateX(${y * 10}deg) rotateY(${x * -10}deg) translateZ(300px)`;
+        }
+      });
+    };
+    window.addEventListener("mousemove", handleMouse);
+    return () => {
+      window.removeEventListener("mousemove", handleMouse);
+      cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const card = cardRef.current;
+    const rect = card.getBoundingClientRect();
+
+    // Calculate mouse position relative to the center of the card
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+
+    // Adjust sensitivity with multiplier
+    const multiplier = 20;
+    const rx = -(y / (rect.height / 2)) * multiplier;
+    const ry = (x / (rect.width / 2)) * multiplier;
+
+    setRotateX(rx);
+    setRotateY(ry);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setRotateX(0);
+    setRotateY(0);
+  }, []);
 
   useEffect(() => {
-    setIsMobile(typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0));
     if (!startedRef.current) {
       startedRef.current = true;
       void startOnboarding();
@@ -107,19 +109,23 @@ export function JoinPage() {
     const nextStatus = data.status || "initializing";
     setPlatformId(data.platform_id);
     setUpstreamStatus(nextStatus);
-    if (data.qr_url) {
-      setQrUrl(data.qr_url);
-    }
+    if (data.qr_url) setQrUrl(data.qr_url);
 
     if (successStatuses.has(nextStatus)) {
       cleanupPolling();
       setViewState("success");
-      setMessage("AstrBot 机器人接入完成，现在可以返回 AstrBot 使用。");
+      setMessage("登录成功，欢迎坠入树洞。");
       return;
     }
 
     setViewState("waiting");
-    setMessage(statusMessage(nextStatus, isMobile));
+    setMessage(
+      nextStatus === "qr_pending"
+        ? "正在开启引力漩涡..."
+        : nextStatus === "expired"
+          ? "通道已折叠，正在重构空间..."
+          : "请扫码沉入这片静谧之境",
+    );
     schedulePoll(data.platform_id, data.poll_interval_ms);
   }
 
@@ -129,14 +135,13 @@ export function JoinPage() {
     setPlatformId("");
     setQrUrl("");
     setUpstreamStatus("initializing");
-    setMessage("正在创建新的 AstrBot 记录...");
-
+    setMessage("坠入深空...");
     try {
       const data = await api.astrBotOnboardStart();
       applyState(data);
     } catch (error: any) {
       setViewState("error");
-      setMessage(error.message || "AstrBot 引导开启失败");
+      setMessage(error.message || "空间连接失败，请重试。");
     }
   }
 
@@ -146,138 +151,296 @@ export function JoinPage() {
       applyState(data);
     } catch (error: any) {
       setViewState("error");
-      setMessage(error.message || "二维码状态获取失败");
+      setMessage(error.message || "引力波中断。");
     }
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1f2937_0%,#0f172a_35%,#020617_100%)] px-6 py-8 text-white sm:px-8 lg:px-10">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl flex-col justify-between gap-8">
-        <header className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
-            <Bot className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-emerald-300/80">AstrBot Public Onboarding</p>
-            <h1 className="mt-1 text-lg font-semibold tracking-tight text-white sm:text-xl">AstrBot 机器人接入</h1>
-          </div>
-        </header>
+    <div
+      className="relative min-h-[100dvh] w-full bg-[#050505] text-emerald-50 overflow-hidden selection:bg-emerald-500/30"
+      style={{ perspective: "1000px" }}
+    >
+      {/* Dynamic Geometric & Spatial Background */}
+      <style>{`
+        @keyframes flow-forward-z {
+          0% { background-position: 0 0; }
+          100% { background-position: 0 4rem; }
+        }
+        @keyframes flow-forward-h {
+          0% { background-position: 0 0; }
+          100% { background-position: -4rem 0; }
+        }
+      `}</style>
+      
+      {/* Outer Static Camera Body */}
+      <div 
+        className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#010202]"
+        style={{ perspective: "1000px" }}
+      >
+        
+        {/* Inner 3D World (Rotated by mouse) */}
+        <div
+          ref={bgRef}
+          className="absolute left-1/2 top-1/2 w-0 h-0 transition-transform duration-75 ease-out"
+          style={{ transformStyle: "preserve-3d" }}
+        >
+          {/* Deep Tunnel Void Background - placed far back */}
+          <div 
+            className="absolute left-1/2 top-1/2 w-[200vw] h-[200vh] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-950/40 via-[#050505] to-[#010202]"
+            style={{ transform: "translateZ(-2000px)" }}
+          ></div>
 
-        <main className="grid flex-1 gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <section className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100">
-              <ShieldCheck className="h-4 w-4" />
-              仅保留公开扫码引导
+          {/* 3D Geometric Prismatic Tunnel Container */}
+          
+          {/* Animated Cyber-Grid Floor */}
+          <div 
+            className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-70"
+            style={{ transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(40vh)", transformStyle: "preserve-3d" }}
+          >
+            <div
+              className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_top,black_40%,transparent_100%)]"
+              style={{ animation: "flow-forward-z 2s linear infinite" }}
+            ></div>
+          </div>
+
+          {/* Animated Cyber-Grid Ceiling */}
+          <div 
+            className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-30"
+            style={{ transform: "translate(-50%, -50%) rotateX(90deg) translateZ(60vh)", transformStyle: "preserve-3d" }}
+          >
+            <div
+              className="absolute inset-0 bg-[linear-gradient(to_right,#14b8a6_2px,transparent_2px),linear-gradient(to_bottom,#14b8a6_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_bottom,black_40%,transparent_100%)]"
+              style={{ animation: "flow-forward-z 2s linear infinite reverse" }}
+            ></div>
+          </div>
+
+          {/* Animated Cyber-Grid Left Wall */}
+          <div 
+            className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50"
+            style={{ transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(60vw)", transformStyle: "preserve-3d" }}
+          >
+            <div
+              className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_right,black_40%,transparent_100%)]"
+              style={{ animation: "flow-forward-h 2s linear infinite" }}
+            ></div>
+          </div>
+
+          {/* Animated Cyber-Grid Right Wall */}
+          <div 
+            className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50"
+            style={{ transform: "translate(-50%, -50%) rotateY(90deg) translateZ(60vw)", transformStyle: "preserve-3d" }}
+          >
+            <div
+              className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_left,black_40%,transparent_100%)]"
+              style={{ animation: "flow-forward-h 2s linear infinite reverse" }}
+            ></div>
+          </div>
+          
+        </div>
+      </div>
+
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-12 lg:px-8">
+        {/* Main Grid: Responsive stacked on mobile, side-by-side on PC */}
+        <main className="grid gap-12 lg:gap-24 lg:grid-cols-[1fr_420px] items-center">
+          {/* Content Column */}
+          <section className="space-y-10 max-w-xl z-20">
+            <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 text-xs font-semibold tracking-widest uppercase backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.15)] animate-[fade-in_1s_ease-out]">
+              <Moon className="w-4 h-4" />
+              <span>静谧之境 · 自由表达</span>
             </div>
 
-            <div className="space-y-4">
-              <h2 className="max-w-3xl text-4xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl">
-                打开页面后直接扫码，
-                <span className="block text-emerald-300">完成 AstrBot 新机器人接入</span>
-              </h2>
-              <p className="max-w-2xl text-base leading-8 text-white/65 sm:text-lg">
-                这是当前项目唯一保留的功能。页面会自动创建一条新的 AstrBot 记录，拉取二维码，并持续刷新状态直到扫码完成。
+            <div className="space-y-8 animate-[fade-in_1.2s_ease-out]">
+              <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-emerald-200 to-emerald-900 drop-shadow-[0_0_30px_rgba(16,185,129,0.5)] leading-[0.9]">
+                星空
+                <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-300">
+                  树洞.
+                </span>
+              </h1>
+              <p className="text-xl leading-relaxed text-emerald-100/70 font-light mix-blend-screen max-w-md border-l-4 border-emerald-500 pl-4">
+                在这片引力深渊，感受极具张力的连接。
+                <br className="hidden sm:block" />
+                放下白日的疲惫，诉说内心的声音。在这里，你可以自由穿梭。
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Card className="rounded-3xl border-white/10 bg-white/[0.04] p-5 text-white shadow-none">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/12 text-emerald-300">
-                  <ScanLine className="h-4 w-4" />
+            <div className="space-y-6 pt-4 animate-[fade-in_1.4s_ease-out]">
+              <div className="flex items-start gap-4 group">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-emerald-400 backdrop-blur-sm border border-white/10 shadow-[inset_0_0_15px_rgba(255,255,255,0.05)] group-hover:bg-white/10 transition-colors duration-500 font-bold">
+                  1
                 </div>
-                <h3 className="text-base font-semibold">自动创建记录</h3>
-                <p className="mt-2 text-sm leading-6 text-white/60">进入页面后直接向 AstrBot 发起 create 请求，不再经过后台页面。</p>
-              </Card>
-
-              <Card className="rounded-3xl border-white/10 bg-white/[0.04] p-5 text-white shadow-none">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/12 text-emerald-300">
-                  <QrCode className="h-4 w-4" />
+                <div className="pt-1.5 flex-1">
+                  <h3 className="text-lg font-bold text-white tracking-wide">
+                    准备终端
+                  </h3>
+                  <p className="text-emerald-100/60 leading-relaxed text-sm mt-1 font-light">
+                    请在手机上打开微信应用。
+                  </p>
                 </div>
-                <h3 className="text-base font-semibold">自动获取二维码</h3>
-                <p className="mt-2 text-sm leading-6 text-white/60">二维码状态会持续轮询刷新，直到扫码确认成功。</p>
-              </Card>
-
-              <Card className="rounded-3xl border-white/10 bg-white/[0.04] p-5 text-white shadow-none">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/12 text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <div className="flex items-start gap-4 group">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-emerald-400 backdrop-blur-sm border border-white/10 shadow-[inset_0_0_15px_rgba(255,255,255,0.05)] group-hover:bg-white/10 transition-colors duration-500 font-bold">
+                  2
                 </div>
-                <h3 className="text-base font-semibold">完成后即可返回</h3>
-                <p className="mt-2 text-sm leading-6 text-white/60">扫码完成后页面只显示成功态，不再暴露任何后台或记录管理能力。</p>
-              </Card>
+                <div className="pt-1.5 flex-1">
+                  <h3 className="text-lg font-bold text-white tracking-wide">
+                    捕获引力波
+                  </h3>
+                  <p className="text-emerald-100/60 leading-relaxed text-sm mt-1 font-light">
+                    使用软件的「扫一扫」功能，扫描右侧的动态连接凭证。
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4 group">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-emerald-400 backdrop-blur-sm border border-white/10 shadow-[inset_0_0_15px_rgba(255,255,255,0.05)] group-hover:bg-white/10 transition-colors duration-500 font-bold">
+                  3
+                </div>
+                <div className="pt-1.5 flex-1">
+                  <h3 className="text-lg font-bold text-white tracking-wide">
+                    确认跃迁
+                  </h3>
+                  <p className="text-emerald-100/60 leading-relaxed text-sm mt-1 font-light">
+                    在手机端确认授权登录，信道建立后即可坠入树洞。
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
 
-          <Card className="rounded-[32px] border-white/10 bg-white/[0.05] p-6 text-white shadow-[0_24px_80px_-20px_rgba(0,0,0,0.65)] sm:p-8">
-            <div className="space-y-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium uppercase tracking-[0.24em] text-emerald-300/80">扫码入口</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight">AstrBot onboarding</h3>
-                </div>
-                <Button variant="outline" onClick={() => void startOnboarding()} className="rounded-full border-white/10 bg-white/5 text-white hover:bg-white/10">
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  重新开始
-                </Button>
+          {/* Action Column: 3D Tilt Card */}
+          <aside className="relative flex flex-col items-center z-30 perspective-[1500px]">
+            <div
+              ref={cardRef}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              className="w-full relative rounded-[3.5rem] bg-[#020604]/60 backdrop-blur-3xl border-2 border-emerald-500/20 p-10 sm:p-12 shadow-[0_30px_100px_-20px_rgba(16,185,129,0.4)] flex flex-col items-center transition-transform duration-100 ease-out preserve-3d"
+              style={{
+                transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+              }}
+            >
+              {/* Aggressive Edge Glow */}
+              <div
+                className="absolute inset-0 rounded-[3.5rem] pointer-events-none opacity-100 bg-gradient-to-br from-emerald-400/30 via-transparent to-cyan-500/20 mix-blend-overlay"
+                style={{ transform: "translateZ(1px)" }}
+              ></div>
+
+              <div
+                className="mb-10 w-full text-center"
+                style={{ transform: "translateZ(40px)" }}
+              >
+                <div className="mx-auto w-16 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent mb-6 rounded-full"></div>
+                <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-emerald-200 tracking-tight drop-shadow-lg uppercase">
+                  建立连接
+                </h2>
+                <p className="text-emerald-300/80 mt-3 font-medium tracking-widest text-xs">
+                  AWAITING DEVICE SYNC
+                </p>
               </div>
 
-              <div className="rounded-[28px] border border-white/10 bg-black/25 p-5">
-                <div className="mx-auto flex min-h-[300px] items-center justify-center rounded-[24px] border border-dashed border-white/10 bg-white/5 p-4">
-                  {viewState === "loading" || viewState === "idle" ? (
-                    <div className="flex flex-col items-center gap-4 text-center text-white/70">
-                      <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
-                      <p className="text-sm">{message}</p>
-                    </div>
-                  ) : viewState === "error" ? (
-                    <div className="flex max-w-[260px] flex-col items-center gap-4 text-center text-white/70">
-                      <TriangleAlert className="h-10 w-10 text-rose-300" />
-                      <p className="text-sm leading-6">{message}</p>
-                      <Button onClick={() => void startOnboarding()} className="rounded-full">重试</Button>
-                    </div>
-                  ) : viewState === "success" ? (
-                    <div className="flex max-w-[280px] flex-col items-center gap-4 text-center">
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
-                        <CheckCircle2 className="h-10 w-10" />
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-xl font-semibold text-white">接入完成</p>
-                        <p className="text-sm leading-6 text-white/65">{message}</p>
-                      </div>
-                    </div>
-                  ) : qrUrl ? (
-                    <QrDisplay value={qrUrl} />
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 text-center text-white/70">
-                      <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
-                      <p className="text-sm">{message}</p>
-                    </div>
-                  )}
-                </div>
+              {/* QR Container with extreme 3D depth */}
+              <div
+                className="flex rounded-[3rem] border border-emerald-500/30 bg-[#020604] min-h-[300px] w-full items-center justify-center relative mb-10 shadow-[inset_0_0_80px_rgba(16,185,129,0.3)] overflow-hidden"
+                style={{ transform: "translateZ(80px)" }}
+              >
+                {/* 悬浮强光扫描 */}
+                {qrUrl && viewState !== "success" && (
+                  <div className="absolute inset-0 pointer-events-none z-20">
+                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-transparent via-emerald-300 to-transparent shadow-[0_0_30px_5px_rgba(16,185,129,0.8)] opacity-90 animate-[scan_2s_ease-in-out_infinite]"></div>
+                  </div>
+                )}
 
-                <div className="mt-5 space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-white/90">
-                    <QrCode className="h-4 w-4 text-emerald-300" />
-                    {message || "等待二维码状态"}
-                  </div>
-                  <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/60 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.24em] text-white/35">当前状态</p>
-                      <p className="mt-2 font-mono text-white/80">{upstreamStatus}</p>
+                {viewState === "loading" || viewState === "idle" ? (
+                  <div className="flex flex-col items-center justify-center p-12">
+                    <div className="relative">
+                      <div className="absolute inset-0 rounded-full blur-2xl bg-emerald-500/40 animate-pulse"></div>
+                      <Loader2 className="relative h-16 w-16 animate-spin text-emerald-400 drop-shadow-[0_0_20px_rgba(16,185,129,0.8)]" />
                     </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.24em] text-white/35">Platform ID</p>
-                      <p className="mt-2 break-all font-mono text-white/80">{platformId || "等待创建"}</p>
+                    <p className="mt-8 text-emerald-300 tracking-[0.2em] font-mono text-xl animate-pulse font-bold">
+                      {message}
+                    </p>
+                  </div>
+                ) : viewState === "error" ? (
+                  <div className="flex flex-col items-center gap-5 text-center px-6">
+                    <div className="rounded-3xl bg-red-500/10 p-5 text-red-400 border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
+                      <Lock className="h-8 w-8" />
+                    </div>
+                    <p className="text-sm text-red-200 font-light leading-relaxed">
+                      {message}
+                    </p>
+                    <button
+                      onClick={() => void startOnboarding()}
+                      className="mt-3 px-8 py-3 bg-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/10 active:scale-95"
+                    >
+                      重新凝结
+                    </button>
+                  </div>
+                ) : viewState === "success" ? (
+                  <div className="flex flex-col items-center gap-6 text-center px-4">
+                    <div className="relative">
+                      <div className="absolute inset-0 rounded-full blur-xl bg-emerald-500/30 animate-[ping_2s_ease-out_infinite]"></div>
+                      <div className="relative rounded-full bg-emerald-500 p-6 text-black border border-emerald-300 shadow-[0_0_40px_rgba(16,185,129,0.4)] transition-transform duration-500 hover:scale-110">
+                        <CheckCircle2 className="h-10 w-10" strokeWidth={2.5} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-lg font-bold text-white tracking-widest drop-shadow-md">
+                        维度已融合
+                      </p>
+                      <p className="text-sm text-emerald-200/80 font-light">
+                        {message}
+                      </p>
                     </div>
                   </div>
+                ) : qrUrl ? (
+                  <div className="p-3 bg-emerald-50 rounded-[2.5rem] shadow-[0_0_80px_rgba(16,185,129,0.5)] border-4 border-emerald-400 transition-all duration-500 hover:shadow-[0_0_120px_rgba(16,185,129,0.8)] hover:scale-105">
+                    <QrCanvas value={qrUrl} />
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Status Bar - Bolder Treatment */}
+              <div
+                className="w-full flex items-center justify-between text-sm text-emerald-200 font-bold bg-[#020604] rounded-full px-8 py-5 border-2 border-emerald-500/30 shadow-[0_15px_30px_-5px_rgba(16,185,129,0.3)]"
+                style={{ transform: "translateZ(60px)" }}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-100"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-300 shadow-[0_0_15px_rgba(16,185,129,1)]"></span>
+                  </span>
+                  <span className="font-mono tracking-widest uppercase">
+                    {upstreamStatus}
+                  </span>
+                </div>
+                <div className="truncate max-w-[120px] font-mono text-emerald-500/50">
+                  {platformId || "----------"}
                 </div>
               </div>
             </div>
-          </Card>
+          </aside>
         </main>
-
-        <footer className="pt-2 text-center text-xs uppercase tracking-[0.28em] text-white/28">
-          Only public onboarding remains
-        </footer>
       </div>
+
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-40px) scale(1.05); }
+        }
+        @keyframes scan {
+          0% { top: 0%; opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(20px); filter: blur(10px); }
+          to { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+        @keyframes grid-flow {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(4rem); }
+        }
+      `}</style>
     </div>
   );
 }

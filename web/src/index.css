@@ -26,19 +26,6 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.693 0.195 151.5);
   --radius: 0.625rem;
-  --chart-1: oklch(0.693 0.195 151.5);
-  --chart-2: oklch(0.556 0.12 151.5);
-  --chart-3: oklch(0.439 0.08 151.5);
-  --chart-4: oklch(0.371 0.06 151.5);
-  --chart-5: oklch(0.269 0.04 151.5);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.693 0.195 151.5);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.95 0.03 151.5);
-  --sidebar-accent-foreground: oklch(0.25 0.08 151.5);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.693 0.195 151.5);
 }
 
 .dark {
@@ -61,19 +48,6 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.693 0.195 151.5);
-  --chart-1: oklch(0.693 0.195 151.5);
-  --chart-2: oklch(0.556 0.12 151.5);
-  --chart-3: oklch(0.439 0.08 151.5);
-  --chart-4: oklch(0.371 0.06 151.5);
-  --chart-5: oklch(0.269 0.04 151.5);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.693 0.195 151.5);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.22 0.04 151.5);
-  --sidebar-accent-foreground: oklch(0.85 0.08 151.5);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.693 0.195 151.5);
 }
 
 @theme inline {
@@ -102,19 +76,7 @@
   --radius-xl: calc(var(--radius) + 4px);
   --font-heading: var(--font-sans);
   --font-sans: "Geist Variable", sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
@@ -133,38 +95,48 @@
   }
 }
 
-@keyframes hexagon-drift {
-  0% {
-    transform: translate3d(-2%, -1%, 0) scale(1.02);
-  }
-  100% {
-    transform: translate3d(2%, 1%, 0) scale(1.08);
-  }
+
+@keyframes bioluminescent-flow {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.1; filter: blur(30px); }
+  33% { transform: translate3d(-4%, 6%, 0) scale(1.1); opacity: 0.2; filter: blur(40px); }
+  66% { transform: translate3d(3%, -5%, 0) scale(0.9); opacity: 0.15; filter: blur(35px); }
+  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.1; filter: blur(30px); }
 }
 
-@keyframes hexagon-pulse {
-  0%,
-  100% {
-    opacity: 0.18;
-  }
-  50% {
-    opacity: 0.42;
-  }
+@keyframes text-breathe {
+  0%, 100% { opacity: 0.8; text-shadow: 0 0 10px rgba(16, 185, 129, 0.1); }
+  50% { opacity: 1; text-shadow: 0 0 20px rgba(16, 185, 129, 0.4), 0 0 40px rgba(16, 185, 129, 0.2); }
 }
 
-.hexagon-background {
-  animation: hexagon-drift 24s ease-in-out infinite alternate;
+@keyframes float-slow {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+  100% { transform: translateY(0px); }
 }
 
-.hexagon-cell {
-  fill: transparent;
-  stroke: color-mix(in oklch, var(--foreground) 16%, transparent);
-  stroke-width: 1;
+@keyframes reveal-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-.hexagon-accent {
-  fill: color-mix(in oklch, var(--primary) 12%, transparent);
-  stroke: color-mix(in oklch, var(--primary) 30%, transparent);
-  stroke-width: 1;
-  animation: hexagon-pulse 7s ease-in-out infinite;
+.animate-glow-flow {
+  animation: bioluminescent-flow 25s ease-in-out infinite;
+}
+
+.animate-text-breathe {
+  animation: text-breathe 6s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 10s ease-in-out infinite;
+}
+
+.animate-reveal-up {
+  animation: reveal-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-reveal-up-delayed {
+  animation: reveal-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.3s;
+  opacity: 0;
 }

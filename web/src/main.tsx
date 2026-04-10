@@ -5,7 +5,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Progress, ProgressProvider, useAnchorProgress } from "@bprogress/react";
 import { queryClient } from "./lib/query-client";
 import "./index.css";
-import { HomePage } from "./pages/home";
 import { ThemeProvider } from "./lib/theme";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
@@ -26,7 +25,7 @@ createRoot(document.getElementById("root")!).render(
               <RouterProgress />
               <Progress />
               <Routes>
-                <Route path="/" element={<HomePage />} />
+                <Route path="/" element={<JoinPage />} />
                 <Route path="/join" element={<JoinPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
