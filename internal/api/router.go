@@ -230,6 +230,13 @@ func (s *Server) Handler() http.Handler {
 
 	// --- Admin: system config ---
 	protected.HandleFunc("GET /api/admin/config/oauth", s.requireAdmin(s.handleGetOAuthConfig))
+
+	// --- Admin: relay (virtual group) ---
+	protected.HandleFunc("GET /api/admin/relay/messages", s.requireAdmin(s.handleRelayMessages))
+	protected.HandleFunc("GET /api/admin/relay/members", s.requireAdmin(s.handleRelayMembers))
+	protected.HandleFunc("DELETE /api/admin/relay/members/{botID}", s.requireAdmin(s.handleRemoveRelayMember))
+	protected.HandleFunc("GET /api/admin/relay/stats", s.requireAdmin(s.handleRelayStats))
+	protected.HandleFunc("GET /api/admin/relay/ws", s.requireAdmin(s.handleRelayWS))
 	protected.HandleFunc("PUT /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleSetOAuthConfig))
 	protected.HandleFunc("DELETE /api/admin/config/oauth/{provider}", s.requireAdmin(s.handleDeleteOAuthConfig))
 	protected.HandleFunc("GET /api/admin/config/oidc", s.requireAdmin(s.handleGetOIDCConfig))

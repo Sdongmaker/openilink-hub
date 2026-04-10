@@ -200,6 +200,7 @@ func main() {
 	srv.PushHub = push.NewHub()
 	mgr.SetAppWSHub(srv.AppWSHub)
 	mgr.SetPushHub(srv.PushHub)
+	mgr.SetRelayAdminHub(bot.NewRelayAdminHub())
 
 	// Start all saved bots
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

@@ -17,6 +17,38 @@ export interface Bot {
   owner_name?: string;
 }
 
+export interface RelayMessage {
+  id: number;
+  source_bot_id: string;
+  emoji: string;
+  content_type: string;
+  content: string;
+  media_key?: string;
+  original_msg_id?: number;
+  created_at: number;
+}
+
+export interface RelayMessagesResponse {
+  messages: RelayMessage[];
+  next_cursor: string;
+  has_more: boolean;
+}
+
+export interface RelayMemberInfo {
+  bot_id: string;
+  emoji: string;
+  bot_name: string;
+  owner_name: string;
+  online: boolean;
+  joined_at: number;
+}
+
+export interface RelayStats {
+  total_members: number;
+  online_members: number;
+  last_message_at: number;
+}
+
 export function botDisplayName(bot: Pick<Bot, "display_name" | "name">): string {
   return bot.display_name || bot.name;
 }
@@ -289,4 +321,16 @@ export const api = {
   resetUserPassword: (id: string) =>
     request<{ password: string }>(`/api/admin/users/${id}/password`, { method: "PUT" }),
   deleteUser: (id: string) => request(`/api/admin/users/${id}`, { method: "DELETE" }),
+
+  // Admin: Relay (virtual group)
+  relayMessages: (cursor?: string, limit?: number) => {
+    const params = new URLSearchParams();
+    if (limit) params.set("limit", String(limit));
+    if (cursor) params.set("cursor", cursor);
+    return request<RelayMessagesResponse>(`/api/admin/relay/messages?${params}`);
+  },
+  relayMembers: () => request<RelayMemberInfo[]>("/api/admin/relay/members"),
+  removeRelayMember: (botID: string) =>
+    request(`/api/admin/relay/members/${botID}`, { method: "DELETE" }),
+  relayStats: () => request<RelayStats>("/api/admin/relay/stats"),
 };

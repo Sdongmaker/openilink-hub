@@ -700,6 +700,16 @@ func (s *Store) RemoveRelayMember(botID string) error {
 	return nil
 }
 
+func (s *Store) SaveRelayMessage(string, string, string, string, string, int64) (*store.RelayMessage, error) {
+	return &store.RelayMessage{}, nil
+}
+func (s *Store) ListRelayMessages(int, int64) ([]store.RelayMessage, error) { return nil, nil }
+func (s *Store) SaveRelayDelivery(int64, string) error                      { return nil }
+func (s *Store) UpdateRelayDelivery(int64, string, string, int, string) error {
+	return nil
+}
+func (s *Store) ListPendingDeliveries(string) ([]store.RelayDelivery, error) { return nil, nil }
+
 // --- io.Closer ---
 
 func (s *Store) Close() error { return nil }

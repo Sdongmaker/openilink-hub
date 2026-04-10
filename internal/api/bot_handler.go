@@ -17,6 +17,24 @@ import (
 	"github.com/openilink/openilink-hub/internal/provider"
 )
 
+// getBotWithAccess fetches a bot and verifies the caller has access.
+// Admins may access any bot; regular users only their own.
+func (s *Server) getBotWithAccess(r *http.Request, botID string) (*store.Bot, error) {
+	userID := auth.UserIDFromContext(r.Context())
+	bot, err := s.Store.GetBot(botID)
+	if err != nil {
+		return nil, err
+	}
+	user, _ := s.Store.GetUserByID(userID)
+	if user != nil && store.IsAdmin(user.Role) {
+		return bot, nil
+	}
+	if bot.UserID != userID {
+		return nil, fmt.Errorf("not found")
+	}
+	return bot, nil
+}
+
 func (s *Server) handleListBots(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 
@@ -324,10 +342,9 @@ func (s *Server) handleBindStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleReconnect(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	bot, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -343,10 +360,9 @@ func (s *Server) handleReconnect(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteBot(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -358,10 +374,9 @@ func (s *Server) handleDeleteBot(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateBot(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -435,10 +450,9 @@ func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
 // Multipart: file=@image.jpg, text=caption (optional), recipient=xxx (optional)
 func (s *Server) handleBotSend(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	bot, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -602,10 +616,9 @@ func parseSendRequest(r *http.Request) (provider.OutboundMessage, string, error)
 // PUT /api/bots/{id}/ai
 func (s *Server) handleSetBotAI(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -632,10 +645,9 @@ func (s *Server) handleSetBotAI(w http.ResponseWriter, r *http.Request) {
 // PUT /api/bots/{id}/ai_model
 func (s *Server) handleSetBotAIModel(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -660,10 +672,9 @@ func (s *Server) handleSetBotAIModel(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBotContacts(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}

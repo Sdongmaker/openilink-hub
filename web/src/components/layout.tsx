@@ -24,6 +24,7 @@ import {
   House,
   Code2,
   ShieldAlert,
+  Radio,
   X,
 } from "lucide-react";
 import { api, botDisplayName } from "../lib/api";
@@ -97,6 +98,8 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   install: "安装应用",
   console: "控制台",
   onboarding: "引导",
+  relay: "虚拟群组",
+  members: "群组成员",
 };
 
 // Intermediate-only segments that are NOT standalone routes.
@@ -447,6 +450,32 @@ export function Layout() {
                           isActive={isActive("/dashboard/admin/reviews")}
                         >
                           <Link to="/dashboard/admin/reviews">审核中心</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton isActive={isActive("/dashboard/admin/relay")} tooltip="虚拟群组">
+                      <Radio />
+                      <span>虚拟群组</span>
+                    </SidebarMenuButton>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          size="sm"
+                          isActive={location.pathname === "/dashboard/admin/relay"}
+                        >
+                          <Link to="/dashboard/admin/relay">消息广场</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          size="sm"
+                          isActive={isActive("/dashboard/admin/relay/members")}
+                        >
+                          <Link to="/dashboard/admin/relay/members">群组成员</Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>

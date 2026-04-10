@@ -4,17 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/openilink/openilink-hub/internal/auth"
 	"github.com/openilink/openilink-hub/internal/store"
 )
 
 func (s *Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	// Verify bot ownership
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	// Verify bot access
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -29,7 +27,6 @@ func (s *Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
 	var req struct {
@@ -43,9 +40,9 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify bot ownership
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	// Verify bot access
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "bot not found", http.StatusNotFound)
 		return
 	}
@@ -63,12 +60,11 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateChannel(w http.ResponseWriter, r *http.Request) {
 	cid := r.PathValue("cid")
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	// Verify bot ownership
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	// Verify bot access
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -126,12 +122,11 @@ func (s *Server) handleUpdateChannel(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 	cid := r.PathValue("cid")
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	// Verify bot ownership
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	// Verify bot access
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -151,12 +146,11 @@ func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRotateKey(w http.ResponseWriter, r *http.Request) {
 	cid := r.PathValue("cid")
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	// Verify bot ownership
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	// Verify bot access
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}

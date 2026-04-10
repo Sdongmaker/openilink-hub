@@ -34,6 +34,7 @@ type Manager struct {
 	appDisp   *appdelivery.Dispatcher // app event delivery
 	appWSHub  *appdelivery.WSHub      // app WebSocket connections
 	pushHub   *push.Hub               // browser push WebSocket
+	relayAdminHub *RelayAdminHub       // admin relay message push
 }
 
 func NewManager(s store.Store, hub *relay.Hub, aiSink *sink.AI, st storage.Store, baseURL string) *Manager {
@@ -58,6 +59,16 @@ func (m *Manager) SetPushHub(hub *push.Hub) {
 // Called after both Manager and WSHub are created in main.go.
 func (m *Manager) SetAppWSHub(hub *appdelivery.WSHub) {
 	m.appWSHub = hub
+}
+
+// SetRelayAdminHub sets the WebSocket hub for admin relay viewers.
+func (m *Manager) SetRelayAdminHub(hub *RelayAdminHub) {
+	m.relayAdminHub = hub
+}
+
+// RelayAdminHubRef returns the relay admin hub for API handlers.
+func (m *Manager) RelayAdminHubRef() *RelayAdminHub {
+	return m.relayAdminHub
 }
 
 func (m *Manager) StartAll(ctx context.Context) {

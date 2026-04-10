@@ -10,14 +10,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/openilink/openilink-hub/internal/auth"
 )
 
 // GET /api/apps/{id}/oauth/authorize?bot_id=xxx&state=xxx&code_challenge=xxx
 // Called when user confirms the install. Creates installation, generates code, redirects to oauth_redirect_url.
 func (s *Server) handleAppOAuthAuthorize(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	appID := r.PathValue("id")
 	botID := r.URL.Query().Get("bot_id")
 	state := r.URL.Query().Get("state")
@@ -38,9 +35,9 @@ func (s *Server) handleAppOAuthAuthorize(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Verify the user owns the bot
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	// Verify the user has access to the bot
+	_, err = s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "bot not found", http.StatusNotFound)
 		return
 	}
@@ -159,7 +156,6 @@ func (s *Server) handleAppOAuthExchange(w http.ResponseWriter, r *http.Request) 
 // GET /api/apps/{id}/oauth/setup-redirect?bot_id=xxx
 // Starts the OAuth install flow by redirecting to the app's oauth_setup_url.
 func (s *Server) handleAppOAuthSetupRedirect(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	appID := r.PathValue("id")
 	botID := r.URL.Query().Get("bot_id")
 
@@ -178,9 +174,9 @@ func (s *Server) handleAppOAuthSetupRedirect(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Verify user owns the bot
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	// Verify user has access to the bot
+	_, err = s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "bot not found", http.StatusNotFound)
 		return
 	}

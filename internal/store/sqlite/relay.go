@@ -90,3 +90,87 @@ func (db *DB) RemoveRelayMember(botID string) error {
 	_, err := db.Exec("DELETE FROM relay_members WHERE bot_id = ?", botID)
 	return err
 }
+
+func (db *DB) SaveRelayMessage(sourceBotID, emoji, contentType, content, mediaKey string, originalMsgID int64) (*store.RelayMessage, error) {
+	now := time.Now().UnixMilli()
+	res, err := db.Exec(
+		"INSERT INTO relay_messages (source_bot_id, emoji, content_type, content, media_key, original_msg_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		sourceBotID, emoji, contentType, content, mediaKey, originalMsgID, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("save relay message: %w", err)
+	}
+	id, _ := res.LastInsertId()
+	return &store.RelayMessage{
+		ID: id, SourceBotID: sourceBotID, Emoji: emoji,
+		ContentType: contentType, Content: content, MediaKey: mediaKey,
+		OriginalMsgID: originalMsgID, CreatedAt: now,
+	}, nil
+}
+
+func (db *DB) ListRelayMessages(limit int, beforeID int64) ([]store.RelayMessage, error) {
+	var rows *sql.Rows
+	var err error
+	if beforeID > 0 {
+		rows, err = db.Query(
+			"SELECT id, source_bot_id, emoji, content_type, content, COALESCE(media_key,''), COALESCE(original_msg_id,0), created_at FROM relay_messages WHERE id < ? ORDER BY id DESC LIMIT ?",
+			beforeID, limit,
+		)
+	} else {
+		rows, err = db.Query(
+			"SELECT id, source_bot_id, emoji, content_type, content, COALESCE(media_key,''), COALESCE(original_msg_id,0), created_at FROM relay_messages ORDER BY id DESC LIMIT ?",
+			limit,
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var msgs []store.RelayMessage
+	for rows.Next() {
+		var m store.RelayMessage
+		if err := rows.Scan(&m.ID, &m.SourceBotID, &m.Emoji, &m.ContentType, &m.Content, &m.MediaKey, &m.OriginalMsgID, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, nil
+}
+
+func (db *DB) SaveRelayDelivery(relayMsgID int64, targetBotID string) error {
+	now := time.Now().UnixMilli()
+	_, err := db.Exec(
+		"INSERT INTO relay_deliveries (relay_msg_id, target_bot_id, status, attempts, created_at, updated_at) VALUES (?, ?, 'pending', 0, ?, ?)",
+		relayMsgID, targetBotID, now, now,
+	)
+	return err
+}
+
+func (db *DB) UpdateRelayDelivery(relayMsgID int64, targetBotID, status string, attempts int, lastError string) error {
+	now := time.Now().UnixMilli()
+	_, err := db.Exec(
+		"UPDATE relay_deliveries SET status = ?, attempts = ?, last_error = ?, updated_at = ? WHERE relay_msg_id = ? AND target_bot_id = ?",
+		status, attempts, lastError, now, relayMsgID, targetBotID,
+	)
+	return err
+}
+
+func (db *DB) ListPendingDeliveries(targetBotID string) ([]store.RelayDelivery, error) {
+	rows, err := db.Query(
+		"SELECT id, relay_msg_id, target_bot_id, status, attempts, COALESCE(last_error,''), created_at, updated_at FROM relay_deliveries WHERE target_bot_id = ? AND status IN ('pending', 'sending') ORDER BY created_at",
+		targetBotID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []store.RelayDelivery
+	for rows.Next() {
+		var d store.RelayDelivery
+		if err := rows.Scan(&d.ID, &d.RelayMsgID, &d.TargetBotID, &d.Status, &d.Attempts, &d.LastError, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, nil
+}

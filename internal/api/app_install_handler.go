@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openilink/openilink-hub/internal/auth"
 	"github.com/openilink/openilink-hub/internal/store"
 )
 
@@ -284,11 +283,10 @@ func (s *Server) handleAppAPILogs(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/bots/{id}/apps — list app installations on a bot
 func (s *Server) handleListBotApps(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -383,7 +381,6 @@ func (s *Server) handleInstallApp(w http.ResponseWriter, r *http.Request) {
 	if app == nil {
 		return
 	}
-	userID := auth.UserIDFromContext(r.Context())
 
 	var req struct {
 		BotID  string          `json:"bot_id"`
@@ -395,9 +392,9 @@ func (s *Server) handleInstallApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify user owns the bot
-	bot, err := s.Store.GetBot(req.BotID)
-	if err != nil || bot.UserID != userID {
+	// Verify user has access to the bot
+	_, err := s.getBotWithAccess(r, req.BotID)
+	if err != nil {
 		jsonError(w, "bot not found", http.StatusNotFound)
 		return
 	}

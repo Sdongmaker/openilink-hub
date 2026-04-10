@@ -6,16 +6,14 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/openilink/openilink-hub/internal/auth"
 	"github.com/openilink/openilink-hub/internal/store"
 )
 
 func (s *Server) handleRetryMedia(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
-	userID := auth.UserIDFromContext(r.Context())
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -41,11 +39,10 @@ func (s *Server) handleRetryMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	bot, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -113,11 +110,10 @@ func decodeMsgCursor(cursor string) (int64, error) {
 }
 
 func (s *Server) handleWebhookLogs(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -145,11 +141,10 @@ func (s *Server) handleWebhookLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTraces(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -176,11 +171,10 @@ func (s *Server) handleListTraces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetTrace(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
 	botID := r.PathValue("id")
 
-	bot, err := s.Store.GetBot(botID)
-	if err != nil || bot.UserID != userID {
+	_, err := s.getBotWithAccess(r, botID)
+	if err != nil {
 		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
