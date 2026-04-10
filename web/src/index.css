@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/noto-serif-sc";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -97,15 +98,15 @@
 
 
 @keyframes bioluminescent-flow {
-  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.1; filter: blur(30px); }
-  33% { transform: translate3d(-4%, 6%, 0) scale(1.1); opacity: 0.2; filter: blur(40px); }
-  66% { transform: translate3d(3%, -5%, 0) scale(0.9); opacity: 0.15; filter: blur(35px); }
-  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.1; filter: blur(30px); }
+  0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 0.1; }
+  33%  { transform: translate3d(-4%, 6%, 0) scale(1.1); opacity: 0.2; }
+  66%  { transform: translate3d(3%, -5%, 0) scale(0.9); opacity: 0.15; }
+  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.1; }
 }
 
 @keyframes text-breathe {
-  0%, 100% { opacity: 0.8; text-shadow: 0 0 10px rgba(16, 185, 129, 0.1); }
-  50% { opacity: 1; text-shadow: 0 0 20px rgba(16, 185, 129, 0.4), 0 0 40px rgba(16, 185, 129, 0.2); }
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 }
 
 @keyframes float-slow {
@@ -119,8 +120,31 @@
   100% { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes grid-z {
+  from { background-position: 0 0; }
+  to { background-position: 0 -8rem; }
+}
+
+@keyframes grid-h {
+  from { background-position: 0 0; }
+  to { background-position: 8rem 0; }
+}
+
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .animate-glow-flow {
   animation: bioluminescent-flow 25s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .animate-text-breathe {

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Lock, Shield, Wind, Loader2, CheckCircle2, Moon } from "lucide-react";
+import { Lock, Loader2, CheckCircle2, Moon } from "lucide-react";
 import { api, type AstrBotOnboardState } from "../lib/api";
 
 type ViewState = "idle" | "loading" | "waiting" | "success" | "error";
@@ -34,53 +34,44 @@ export function JoinPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedRef = useRef(false);
 
-  // 3D Card Hover Effect State
+  // 3D Card Hover — direct DOM manipulation, no React re-renders
   const cardRef = useRef<HTMLDivElement>(null);
-  const [rotateX, setRotateX] = useState(0);
-  const [rotateY, setRotateY] = useState(0);
 
-  // Global mouse tracking for background tunnel
+  // Background tunnel + card tilt — unified RAF, no transition fighting
   const bgRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    let rafId: number;
-    const handleMouse = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth - 0.5) * 2;
-      const y = (e.clientY / window.innerHeight - 0.5) * 2;
-      rafId = requestAnimationFrame(() => {
-        if (bgRef.current) {
-          // Adjust rotation bounds for a smoother tunnel feel, pushing camera deeper via translateZ
-          bgRef.current.style.transform = `rotateX(${y * 10}deg) rotateY(${x * -10}deg) translateZ(300px)`;
-        }
-      });
+    let rafId = 0;
+    let scheduled = false;
+    let mx = 0, my = 0;
+
+    const tick = () => {
+      scheduled = false;
+      if (bgRef.current) {
+        bgRef.current.style.transform = `rotateX(${my * 10}deg) rotateY(${mx * -10}deg) translateZ(300px)`;
+      }
+      if (cardRef.current) {
+        cardRef.current.style.transform = `rotateX(${my * -6}deg) rotateY(${mx * 6}deg)`;
+      }
     };
-    window.addEventListener("mousemove", handleMouse);
+
+    const handleMouse = (e: MouseEvent) => {
+      mx = (e.clientX / window.innerWidth - 0.5) * 2;
+      my = (e.clientY / window.innerHeight - 0.5) * 2;
+      if (!scheduled) { scheduled = true; rafId = requestAnimationFrame(tick); }
+    };
+
+    const handleLeave = () => {
+      mx = 0; my = 0;
+      if (!scheduled) { scheduled = true; rafId = requestAnimationFrame(tick); }
+    };
+
+    window.addEventListener("mousemove", handleMouse, { passive: true });
+    document.addEventListener("mouseleave", handleLeave);
     return () => {
       window.removeEventListener("mousemove", handleMouse);
+      document.removeEventListener("mouseleave", handleLeave);
       cancelAnimationFrame(rafId);
     };
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const card = cardRef.current;
-    const rect = card.getBoundingClientRect();
-
-    // Calculate mouse position relative to the center of the card
-    const x = e.clientX - rect.left - rect.width / 2;
-    const y = e.clientY - rect.top - rect.height / 2;
-
-    // Adjust sensitivity with multiplier
-    const multiplier = 20;
-    const rx = -(y / (rect.height / 2)) * multiplier;
-    const ry = (x / (rect.width / 2)) * multiplier;
-
-    setRotateX(rx);
-    setRotateY(ry);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setRotateX(0);
-    setRotateY(0);
   }, []);
 
   useEffect(() => {
@@ -160,82 +151,54 @@ export function JoinPage() {
       className="relative min-h-[100dvh] w-full bg-[#050505] text-emerald-50 overflow-hidden selection:bg-emerald-500/30"
       style={{ perspective: "1000px" }}
     >
-      {/* Dynamic Geometric & Spatial Background */}
-      <style>{`
-        @keyframes flow-forward-z {
-          0% { background-position: 0 0; }
-          100% { background-position: 0 4rem; }
-        }
-        @keyframes flow-forward-h {
-          0% { background-position: 0 0; }
-          100% { background-position: -4rem 0; }
-        }
-      `}</style>
-      
       {/* Outer Static Camera Body */}
       <div 
-        className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#010202]"
-        style={{ perspective: "1000px" }}
+        className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#010202] will-change-transform"
+        style={{ perspective: "1000px", contain: "layout style paint" }}
       >
-        
         {/* Inner 3D World (Rotated by mouse) */}
         <div
           ref={bgRef}
-          className="absolute left-1/2 top-1/2 w-0 h-0 transition-transform duration-75 ease-out"
-          style={{ transformStyle: "preserve-3d" }}
+          className="absolute left-1/2 top-1/2 w-0 h-0"
+          style={{ transformStyle: "preserve-3d", willChange: "transform" }}
         >
-          {/* Deep Tunnel Void Background - placed far back */}
+          {/* Deep Tunnel Void Background */}
           <div 
             className="absolute left-1/2 top-1/2 w-[200vw] h-[200vh] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-950/40 via-[#050505] to-[#010202]"
             style={{ transform: "translateZ(-2000px)" }}
-          ></div>
+          />
 
-          {/* 3D Geometric Prismatic Tunnel Container */}
-          
           {/* Animated Cyber-Grid Floor */}
           <div 
             className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-70"
-            style={{ transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(40vh)", transformStyle: "preserve-3d" }}
+            style={{ transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(40vh)", willChange: "transform" }}
           >
-            <div
-              className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_top,black_40%,transparent_100%)]"
-              style={{ animation: "flow-forward-z 2s linear infinite" }}
-            ></div>
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_top,black_40%,transparent_100%)] animate-[grid-z_0.4s_linear_infinite]" />
           </div>
 
           {/* Animated Cyber-Grid Ceiling */}
           <div 
             className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-30"
-            style={{ transform: "translate(-50%, -50%) rotateX(90deg) translateZ(60vh)", transformStyle: "preserve-3d" }}
+            style={{ transform: "translate(-50%, -50%) rotateX(90deg) translateZ(60vh)", willChange: "transform" }}
           >
-            <div
-              className="absolute inset-0 bg-[linear-gradient(to_right,#14b8a6_2px,transparent_2px),linear-gradient(to_bottom,#14b8a6_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_bottom,black_40%,transparent_100%)]"
-              style={{ animation: "flow-forward-z 2s linear infinite reverse" }}
-            ></div>
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#14b8a6_2px,transparent_2px),linear-gradient(to_bottom,#14b8a6_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_bottom,black_40%,transparent_100%)] animate-[grid-z_0.4s_linear_infinite_reverse]" />
           </div>
 
           {/* Animated Cyber-Grid Left Wall */}
           <div 
             className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50"
-            style={{ transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(60vw)", transformStyle: "preserve-3d" }}
+            style={{ transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(60vw)", willChange: "transform" }}
           >
-            <div
-              className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_right,black_40%,transparent_100%)]"
-              style={{ animation: "flow-forward-h 2s linear infinite" }}
-            ></div>
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_right,black_40%,transparent_100%)] animate-[grid-h_0.4s_linear_infinite]" />
           </div>
 
           {/* Animated Cyber-Grid Right Wall */}
           <div 
             className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50"
-            style={{ transform: "translate(-50%, -50%) rotateY(90deg) translateZ(60vw)", transformStyle: "preserve-3d" }}
+            style={{ transform: "translate(-50%, -50%) rotateY(90deg) translateZ(60vw)", willChange: "transform" }}
           >
-            <div
-              className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_left,black_40%,transparent_100%)]"
-              style={{ animation: "flow-forward-h 2s linear infinite reverse" }}
-            ></div>
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_left,black_40%,transparent_100%)] animate-[grid-h_0.4s_linear_infinite_reverse]" />
           </div>
-          
         </div>
       </div>
 
@@ -250,12 +213,8 @@ export function JoinPage() {
             </div>
 
             <div className="space-y-8 animate-[fade-in_1.2s_ease-out]">
-              <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-emerald-200 to-emerald-900 drop-shadow-[0_0_30px_rgba(16,185,129,0.5)] leading-[0.9]">
-                星空
-                <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-300">
-                  树洞.
-                </span>
+              <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9]" style={{ fontFamily: "'Noto Serif SC Variable', serif" }}>
+                <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-emerald-200 to-emerald-900 drop-shadow-[0_0_30px_rgba(16,185,129,0.5)]">星空</span><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-300">树洞</span><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-emerald-400">.</span>
               </h1>
               <p className="text-xl leading-relaxed text-emerald-100/70 font-light mix-blend-screen max-w-md border-l-4 border-emerald-500 pl-4">
                 在这片引力深渊，感受极具张力的连接。
@@ -308,15 +267,11 @@ export function JoinPage() {
           </section>
 
           {/* Action Column: 3D Tilt Card */}
-          <aside className="relative flex flex-col items-center z-30 perspective-[1500px]">
+          <aside className="relative flex flex-col items-center z-30" style={{ perspective: "1500px" }}>
             <div
               ref={cardRef}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              className="w-full relative rounded-[3.5rem] bg-[#020604]/60 backdrop-blur-3xl border-2 border-emerald-500/20 p-10 sm:p-12 shadow-[0_30px_100px_-20px_rgba(16,185,129,0.4)] flex flex-col items-center transition-transform duration-100 ease-out preserve-3d"
-              style={{
-                transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
-              }}
+              className="w-full relative rounded-[3.5rem] bg-[#020604]/60 backdrop-blur-xl border-2 border-emerald-500/20 p-10 sm:p-12 shadow-[0_30px_100px_-20px_rgba(16,185,129,0.4)] flex flex-col items-center"
+              style={{ willChange: "transform", transition: "transform 0.15s ease-out" }}
             >
               {/* Aggressive Edge Glow */}
               <div
@@ -421,26 +376,6 @@ export function JoinPage() {
         </main>
       </div>
 
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-40px) scale(1.05); }
-        }
-        @keyframes scan {
-          0% { top: 0%; opacity: 0; }
-          15% { opacity: 1; }
-          85% { opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(20px); filter: blur(10px); }
-          to { opacity: 1; transform: translateY(0); filter: blur(0); }
-        }
-        @keyframes grid-flow {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(4rem); }
-        }
-      `}</style>
     </div>
   );
 }

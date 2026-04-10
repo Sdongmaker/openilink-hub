@@ -18,6 +18,9 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.8
+      '@fontsource-variable/noto-serif-sc':
+        specifier: ^5.2.10
+        version: 5.2.10
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -334,6 +337,9 @@ packages:
 
   '@fontsource-variable/geist@5.2.8':
     resolution: {integrity: sha512-cJ6m9e+8MQ5dCYJsLylfZrgBh6KkG4bOLckB35Tr9J/EqdkEM6QllH5PxqP1dhTvFup+HtMRPuz9xOjxXJggxw==}
+
+  '@fontsource-variable/noto-serif-sc@5.2.10':
+    resolution: {integrity: sha512-TRhuDxWAnqUUtRZFCy8aoJB3/7HsuCaW/4B3wBTE0hzE8QVapklTjE2aY7s/wXWFXHLdflYNroloZoXekoKClw==}
 
   '@hono/node-server@1.19.11':
     resolution: {integrity: sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g==}
@@ -3219,6 +3225,8 @@ snapshots:
   '@floating-ui/utils@0.2.11': {}
 
   '@fontsource-variable/geist@5.2.8': {}
+
+  '@fontsource-variable/noto-serif-sc@5.2.10': {}
 
   '@hono/node-server@1.19.11(hono@4.12.9)':
     dependencies:
