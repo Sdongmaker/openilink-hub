@@ -1,1 +1,1 @@
-export { JoinPage as HomePage } from "./join";
+export { LandingPage as HomePage } from "./landing";

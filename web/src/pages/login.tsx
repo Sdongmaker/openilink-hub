@@ -35,7 +35,7 @@ export function LoginPage() {
         setLoading(false);
         return;
       }
-      navigate("/dashboard");
+      navigate("/dashboard/admin/astrbot");
     } catch (err: any) {
       setError(err.message);
     }
@@ -108,7 +108,7 @@ export function LoginPage() {
         setLoading(false);
         return;
       }
-      navigate("/dashboard");
+      navigate("/dashboard/admin/astrbot");
     } catch (err: any) {
       if (err.name !== "NotAllowedError") setError(err.message || "Passkey 登录失败");
     }
@@ -127,9 +127,9 @@ export function LoginPage() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 mb-4">
             <Shield className="h-6 w-6" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">OpeniLink Hub</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight">AstrBot 接入后台</h1>
           <p className="text-sm text-muted-foreground font-medium">
-            管理员登录
+            仅管理员可创建机器人并查看当前接入记录
           </p>
         </div>
 
@@ -197,13 +197,13 @@ export function LoginPage() {
           </CardContent>
           <CardFooter className="border-t bg-muted/30 pt-4 pb-4 rounded-b-xl justify-center">
             <p className="text-[10px] text-center text-muted-foreground/60 leading-relaxed px-6">
-              仅限管理员账号登录。
+              该后台仅用于 AstrBot 机器人接入与当前记录管理。
             </p>
           </CardFooter>
         </Card>
 
         <footer className="mt-8 text-center text-[11px] text-muted-foreground/50 font-medium">
-          &copy; 2026 OpeniLink Hub
+          &copy; 2026 AstrBot Access Portal
         </footer>
       </div>
     </div>

@@ -16,11 +16,3 @@ export function useUser() {
     retry: false,
   });
 }
-
-export function useInfo() {
-  return useQuery({
-    queryKey: queryKeys.info(),
-    queryFn: () => api.info(),
-    staleTime: 10 * 60_000,
-  });
-}

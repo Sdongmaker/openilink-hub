@@ -54,26 +54,10 @@ export function useUnlinkOAuth() {
   });
 }
 
-export function useChangePassword() {
-  return useMutation({
-    mutationFn: (data: { old_password: string; new_password: string }) =>
-      api.changePassword(data),
-  });
-}
-
 export function useUpdateUsername() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (username: string) => api.updateUsername(username),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.user() }),
-  });
-}
-
-export function useUpdateProfile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: { display_name?: string; email?: string }) =>
-      api.updateProfile(data),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.user() }),
   });
 }

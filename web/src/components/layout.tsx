@@ -1,34 +1,19 @@
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useUser } from "@/hooks/use-auth";
-import { useBots } from "@/hooks/use-bots";
 import { useAuthStore } from "@/stores/auth-store";
-import logoBlack from "@/assets/logo-black.svg";
-import logoWhite from "@/assets/logo-white.svg";
-import iconBlack from "@/assets/icon-black.svg";
-import iconWhite from "@/assets/icon-white.svg";
 import {
   LogOut,
-  Github,
-  Bot,
-  ShieldCheck,
   Sun,
   Moon,
   ChevronsUpDown,
-  Zap,
   Settings2,
-  Search,
-  MonitorDot,
-  Puzzle,
-  Circle,
   House,
-  Code2,
   ShieldAlert,
-  Radio,
   Unplug,
   X,
 } from "lucide-react";
-import { api, botDisplayName } from "../lib/api";
+import { api } from "../lib/api";
 import { useTheme } from "../lib/theme";
 import {
   Sidebar,
@@ -69,44 +54,32 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import * as React from "react";
 
 function SidebarLogo() {
   const { open } = useSidebar();
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+
   return open ? (
-    <img src={isDark ? logoWhite : logoBlack} alt="OpeniLink" className="h-7 w-auto" />
+    <div className="flex items-center gap-2">
+      <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
+        <Unplug className="size-4" />
+      </div>
+      <span className="text-sm font-semibold tracking-tight">AstrBot</span>
+    </div>
   ) : (
-    <img src={isDark ? iconWhite : iconBlack} alt="OpeniLink" className="size-7" />
+    <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
+      <Unplug className="size-4" />
+    </div>
   );
 }
 
 const BREADCRUMB_LABELS: Record<string, string> = {
-  accounts: "账号管理",
-  apps: "应用",
-  overview: "概览",
+  admin: "后台",
+  astrbot: "机器人接入",
   settings: "设置",
   profile: "个人资料",
-  security: "安全",
-  admin: "系统管理",
-  users: "用户管理",
-  reviews: "审核中心",
-  traces: "消息追踪",
-  developer: "开发者",
-  install: "安装应用",
-  console: "控制台",
-  onboarding: "引导",
-  relay: "虚拟群组",
-  members: "群组成员",
-  astrbot: "外部 Bot",
+  security: "安全认证",
 };
-
-// Intermediate-only segments that are NOT standalone routes.
-// These are skipped in breadcrumbs when followed by a dynamic ID.
-const BREADCRUMB_SKIP = new Set(["apps", "install"]);
 
 const statusColors: Record<string, string> = {
   connected: "text-green-500 fill-green-500",
@@ -118,32 +91,15 @@ const statusColors: Record<string, string> = {
 function LayoutHeader() {
   const location = useLocation();
   const { resolvedTheme, setTheme } = useTheme();
-  const searchRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // Build breadcrumbs from path, skipping segments that are intermediate
-  // parts of a compound route (e.g. "apps" in /accounts/:id/apps/:iid).
   const rawSegments = location.pathname
     .split("/")
     .filter((s) => Boolean(s) && s !== "dashboard" && s !== "overview");
   const breadcrumbs: { label: string; path: string; isLast: boolean }[] = [];
+
   for (let i = 0; i < rawSegments.length; i++) {
     const segment = rawSegments[i];
     const path = `/dashboard/${rawSegments.slice(0, i + 1).join("/")}`;
-    // Skip intermediate-only segments (e.g. "apps" in /accounts/:id/apps/:iid)
-    if (BREADCRUMB_SKIP.has(segment) && i > 0 && i < rawSegments.length - 1) {
-      continue;
-    }
     let label = BREADCRUMB_LABELS[segment] || segment;
     if (segment.length > 20) label = "详情";
     breadcrumbs.push({ label, path, isLast: i === rawSegments.length - 1 });
@@ -159,7 +115,7 @@ function LayoutHeader() {
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  to="/dashboard/overview"
+                  to="/dashboard/admin/astrbot"
                   className="flex items-center text-muted-foreground hover:text-primary transition-colors"
                 >
                   <House className="h-3.5 w-3.5" />
@@ -192,62 +148,14 @@ function LayoutHeader() {
         </Breadcrumb>
       </div>
 
-      <TooltipProvider>
-        <div className="flex items-center gap-3">
-          <div className="hidden lg:flex relative items-center group">
-            <Search className="absolute left-3 size-3.5 text-muted-foreground group-focus-within:text-primary transition-colors z-10" />
-            <Input
-              ref={searchRef}
-              aria-label="搜索"
-              placeholder="搜索..."
-              className="h-9 w-56 pl-9 pr-14 focus:w-72 transition-all duration-200 bg-muted/40 border-border/50"
-            />
-            <kbd className="absolute right-2.5 pointer-events-none flex h-5 items-center gap-0.5 rounded border border-border/50 bg-muted px-1.5 text-[10px] font-medium text-muted-foreground group-focus-within:hidden">
-              ⌘K
-            </kbd>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              >
-                {resolvedTheme === "dark" ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>切换外观主题</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
-                <a
-                  href="https://github.com/openilink/openilink-hub"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Github className="h-4 w-4" />
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>GitHub 项目</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 relative">
-                <Zap className="h-4 w-4 text-yellow-500 fill-yellow-500/20" />
-                <span className="absolute top-2 right-2 size-2 bg-primary rounded-full border-2 border-background animate-pulse" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>活动</TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9"
+        onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+      >
+        {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </Button>
     </header>
   );
 }
@@ -275,7 +183,6 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { data: user, isError } = useUser();
-  const { data: bots = [] } = useBots();
   const [version, setVersion] = useState("");
 
   useEffect(() => {
@@ -306,7 +213,7 @@ export function Layout() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
-                <Link to="/dashboard/overview">
+                <Link to="/dashboard/admin/astrbot">
                   <SidebarLogo />
                 </Link>
               </SidebarMenuButton>
@@ -315,189 +222,17 @@ export function Layout() {
         </SidebarHeader>
 
         <SidebarContent>
-          {/* Overview */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === "/dashboard/overview"}
-                    tooltip="概览"
-                  >
-                    <Link to="/dashboard/overview">
-                      <MonitorDot />
-                      <span>概览</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* 账号管理 */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={isActive("/dashboard/accounts")} tooltip="账号管理">
-                    <Bot />
-                    <span>账号管理</span>
-                  </SidebarMenuButton>
-                  <SidebarMenuSub>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton
-                        asChild
-                        size="sm"
-                        isActive={location.pathname === "/dashboard/accounts"}
-                      >
-                        <Link to="/dashboard/accounts">全部账号</Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    {bots.map((b) => (
-                      <SidebarMenuSubItem key={b.id}>
-                        <SidebarMenuSubButton
-                          asChild
-                          size="sm"
-                          isActive={isActive(`/dashboard/accounts/${b.id}`)}
-                        >
-                          <Link to={`/dashboard/accounts/${b.id}`}>
-                            <Circle
-                              className={`size-2 ${statusColors[b.status] || "text-muted-foreground"}`}
-                            />
-                            <span className="truncate">{botDisplayName(b)}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* 应用市场 */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive("/dashboard/apps")}
-                    tooltip="应用市场"
-                  >
-                    <Link to="/dashboard/apps">
-                      <Puzzle />
-                      <span>应用市场</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* 开发者 */}
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive("/dashboard/developer")}
-                    tooltip="开发者"
-                  >
-                    <Link to="/dashboard/developer/apps">
-                      <Code2 />
-                      <span>开发者</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* 管理 — admin only */}
           {isAdmin && (
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton isActive={isActive("/dashboard/admin")} tooltip="管理">
-                      <ShieldCheck />
-                      <span>管理</span>
-                    </SidebarMenuButton>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          size="sm"
-                          isActive={location.pathname === "/dashboard/admin/overview"}
-                        >
-                          <Link to="/dashboard/admin/overview">系统概览</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          size="sm"
-                          isActive={isActive("/dashboard/admin/users")}
-                        >
-                          <Link to="/dashboard/admin/users">用户管理</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          size="sm"
-                          isActive={isActive("/dashboard/admin/reviews")}
-                        >
-                          <Link to="/dashboard/admin/reviews">审核中心</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton isActive={isActive("/dashboard/admin/relay")} tooltip="虚拟群组">
-                      <Radio />
-                      <span>虚拟群组</span>
-                    </SidebarMenuButton>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          size="sm"
-                          isActive={location.pathname === "/dashboard/admin/relay"}
-                        >
-                          <Link to="/dashboard/admin/relay">消息广场</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          size="sm"
-                          isActive={isActive("/dashboard/admin/relay/members")}
-                        >
-                          <Link to="/dashboard/admin/relay/members">群组成员</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton isActive={isActive("/dashboard/admin/astrbot")} tooltip="外部 Bot">
+                    <SidebarMenuButton asChild isActive={isActive("/dashboard/admin/astrbot")} tooltip="机器人接入">
+                      <Link to="/dashboard/admin/astrbot">
                       <Unplug />
-                      <span>外部 Bot</span>
+                      <span>机器人接入</span>
+                      </Link>
                     </SidebarMenuButton>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          asChild
-                          size="sm"
-                          isActive={location.pathname === "/dashboard/admin/astrbot"}
-                        >
-                          <Link to="/dashboard/admin/astrbot">Bot 管理</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
