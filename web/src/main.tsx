@@ -12,7 +12,7 @@ import { SettingsPage } from "./pages/settings";
 import { ThemeProvider } from "./lib/theme";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
-import { LandingPage } from "./pages/landing";
+import { JoinPage } from "./pages/join";
 import { AdminAstrBotPage } from "./pages/admin-astrbot";
 
 function RouterProgress() {
@@ -32,7 +32,7 @@ createRoot(document.getElementById("root")!).render(
               <Routes>
                 {/* Public Entry */}
                 <Route path="/" element={<HomePage />} />
-                <Route path="/join" element={<LandingPage />} />
+                <Route path="/join" element={<JoinPage />} />
                 <Route path="/login" element={<LoginPage />} />
 
                 {/* Main Application Shell */}
