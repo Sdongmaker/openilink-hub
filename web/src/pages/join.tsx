@@ -19,6 +19,8 @@ function QrCanvas({ value }: { value: string }) {
   return (
     <canvas
       ref={ref}
+      role="img"
+      aria-label="扫码登录二维码"
       className="relative z-10 rounded-2xl drop-shadow-sm transition-transform duration-500 hover:scale-[1.02]"
     />
   );
@@ -170,34 +172,34 @@ export function JoinPage() {
 
           {/* Animated Cyber-Grid Floor */}
           <div 
-            className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-70"
-            style={{ transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(40vh)", willChange: "transform" }}
+            className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-70 overflow-hidden"
+            style={{ transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(40vh)" }}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_top,black_40%,transparent_100%)] animate-[grid-z_0.4s_linear_infinite]" />
+            <div className="absolute -inset-[8rem] bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_top,black_40%,transparent_100%)] will-change-transform animate-[grid-z_0.4s_linear_infinite]" />
           </div>
 
           {/* Animated Cyber-Grid Ceiling */}
           <div 
-            className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-30"
-            style={{ transform: "translate(-50%, -50%) rotateX(90deg) translateZ(60vh)", willChange: "transform" }}
+            className="absolute left-1/2 top-1/2 w-[200vw] h-[400vh] origin-center opacity-30 overflow-hidden"
+            style={{ transform: "translate(-50%, -50%) rotateX(90deg) translateZ(60vh)" }}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#14b8a6_2px,transparent_2px),linear-gradient(to_bottom,#14b8a6_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_bottom,black_40%,transparent_100%)] animate-[grid-z_0.4s_linear_infinite_reverse]" />
+            <div className="absolute -inset-[8rem] bg-[linear-gradient(to_right,#14b8a6_2px,transparent_2px),linear-gradient(to_bottom,#14b8a6_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_bottom,black_40%,transparent_100%)] will-change-transform animate-[grid-z_0.4s_linear_infinite_reverse]" />
           </div>
 
           {/* Animated Cyber-Grid Left Wall */}
           <div 
-            className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50"
-            style={{ transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(60vw)", willChange: "transform" }}
+            className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50 overflow-hidden"
+            style={{ transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(60vw)" }}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_right,black_40%,transparent_100%)] animate-[grid-h_0.4s_linear_infinite]" />
+            <div className="absolute -inset-[8rem] bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_right,black_40%,transparent_100%)] will-change-transform animate-[grid-h_0.4s_linear_infinite]" />
           </div>
 
           {/* Animated Cyber-Grid Right Wall */}
           <div 
-            className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50"
-            style={{ transform: "translate(-50%, -50%) rotateY(90deg) translateZ(60vw)", willChange: "transform" }}
+            className="absolute left-1/2 top-1/2 w-[400vh] h-[200vh] origin-center opacity-50 overflow-hidden"
+            style={{ transform: "translate(-50%, -50%) rotateY(90deg) translateZ(60vw)" }}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_left,black_40%,transparent_100%)] animate-[grid-h_0.4s_linear_infinite_reverse]" />
+            <div className="absolute -inset-[8rem] bg-[linear-gradient(to_right,#059669_2px,transparent_2px),linear-gradient(to_bottom,#059669_2px,transparent_2px)] bg-[size:8rem_8rem] [mask-image:linear-gradient(to_left,black_40%,transparent_100%)] will-change-transform animate-[grid-h_0.4s_linear_infinite_reverse]" />
           </div>
         </div>
       </div>
@@ -270,7 +272,7 @@ export function JoinPage() {
           <aside className="relative flex flex-col items-center z-30" style={{ perspective: "1500px" }}>
             <div
               ref={cardRef}
-              className="w-full relative rounded-[3.5rem] bg-[#020604]/60 backdrop-blur-xl border-2 border-emerald-500/20 p-10 sm:p-12 shadow-[0_30px_100px_-20px_rgba(16,185,129,0.4)] flex flex-col items-center"
+              className="w-full relative rounded-[3.5rem] bg-[#020604]/60 backdrop-blur-md border-2 border-emerald-500/20 p-10 sm:p-12 shadow-[0_30px_100px_-20px_rgba(16,185,129,0.4)] flex flex-col items-center"
               style={{ willChange: "transform", transition: "transform 0.15s ease-out" }}
             >
               {/* Aggressive Edge Glow */}
@@ -294,6 +296,8 @@ export function JoinPage() {
 
               {/* QR Container with extreme 3D depth */}
               <div
+                role="status"
+                aria-live="polite"
                 className="flex rounded-[3rem] border border-emerald-500/30 bg-[#020604] min-h-[300px] w-full items-center justify-center relative mb-10 shadow-[inset_0_0_80px_rgba(16,185,129,0.3)] overflow-hidden"
                 style={{ transform: "translateZ(80px)" }}
               >
@@ -324,7 +328,8 @@ export function JoinPage() {
                     </p>
                     <button
                       onClick={() => void startOnboarding()}
-                      className="mt-3 px-8 py-3 bg-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/10 active:scale-95"
+                      aria-label="重新建立连接"
+                      className="mt-3 px-8 py-4 bg-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] border border-white/10 active:scale-95"
                     >
                       重新凝结
                     </button>
@@ -360,7 +365,7 @@ export function JoinPage() {
               >
                 <div className="flex items-center gap-4">
                   <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-100"></span>
+                    <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-100${viewState !== "success" ? " animate-ping" : ""}`}></span>
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-300 shadow-[0_0_15px_rgba(16,185,129,1)]"></span>
                   </span>
                   <span className="font-mono tracking-widest uppercase">

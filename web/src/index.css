@@ -121,13 +121,13 @@
 }
 
 @keyframes grid-z {
-  from { background-position: 0 0; }
-  to { background-position: 0 -8rem; }
+  from { transform: translateY(0); }
+  to { transform: translateY(-8rem); }
 }
 
 @keyframes grid-h {
-  from { background-position: 0 0; }
-  to { background-position: 8rem 0; }
+  from { transform: translateX(0); }
+  to { transform: translateX(8rem); }
 }
 
 @keyframes scan {
