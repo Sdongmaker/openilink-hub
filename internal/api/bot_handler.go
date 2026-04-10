@@ -19,10 +19,38 @@ import (
 
 func (s *Server) handleListBots(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
-	bots, err := s.Store.ListBotsByUser(userID)
+
+	// Admins see all bots; regular users see only their own.
+	user, _ := s.Store.GetUserByID(userID)
+	isAdmin := user != nil && store.IsAdmin(user.Role)
+
+	var bots []store.Bot
+	var err error
+	if isAdmin {
+		bots, err = s.Store.GetAllBots()
+	} else {
+		bots, err = s.Store.ListBotsByUser(userID)
+	}
 	if err != nil {
 		jsonError(w, "list failed", http.StatusInternalServerError)
 		return
+	}
+
+	// Build a user-name lookup map for admin view.
+	ownerNames := map[string]string{}
+	if isAdmin {
+		seen := map[string]struct{}{}
+		for _, b := range bots {
+			seen[b.UserID] = struct{}{}
+		}
+		for uid := range seen {
+			if u, err := s.Store.GetUserByID(uid); err == nil {
+				ownerNames[uid] = u.DisplayName
+				if ownerNames[uid] == "" {
+					ownerNames[uid] = u.Username
+				}
+			}
+		}
 	}
 
 	type botResp struct {
@@ -41,6 +69,7 @@ func (s *Server) handleListBots(w http.ResponseWriter, r *http.Request) {
 		LastRemindedAt     *int64          `json:"last_reminded_at,omitempty"`
 		CreatedAt          int64           `json:"created_at"`
 		Extra              json.RawMessage `json:"extra,omitempty"`
+		OwnerName          string          `json:"owner_name,omitempty"`
 	}
 	// Batch check context_token freshness to avoid N+1 queries
 	botIDs := make([]string, len(bots))
@@ -64,6 +93,7 @@ func (s *Server) handleListBots(w http.ResponseWriter, r *http.Request) {
 			MsgCount: b.MsgCount, ReminderHours: b.ReminderHours,
 			LastMsgAt: b.LastMsgAt, LastRemindedAt: b.LastRemindedAt,
 			CreatedAt: b.CreatedAt, Extra: extra,
+			OwnerName: ownerNames[b.UserID],
 		})
 	}
 

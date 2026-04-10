@@ -14,6 +14,7 @@ export interface Bot {
   last_reminded_at?: number;
   created_at: number;
   extra?: Record<string, any>;
+  owner_name?: string;
 }
 
 export function botDisplayName(bot: Pick<Bot, "display_name" | "name">): string {

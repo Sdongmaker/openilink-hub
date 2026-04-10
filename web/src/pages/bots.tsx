@@ -313,7 +313,14 @@ function BotInstanceCard({
         </div>
 
         {/* Stats row */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          {bot.owner_name ? (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {bot.owner_name}
+              </span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <MessageCircle className="h-3.5 w-3.5" />
             <span>{bot.msg_count ?? 0} 消息</span>
