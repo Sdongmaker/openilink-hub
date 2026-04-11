@@ -4,11 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gotd/td/tg"
+)
+
+const (
+	defaultPollInterval = 5 * time.Second
+	maxMediaBytes       = 50 << 20
 )
 
 // CrawlerStatus reports the crawler's running state.
@@ -20,23 +27,24 @@ type CrawlerStatus struct {
 
 // Crawler manages watch targets and dispatches incoming Telegram messages.
 type Crawler struct {
-	client    *Client
-	store     *Store
-	processor *Processor
-
-	targets map[int64]*WatchTarget // chat_id → target
-	mu      sync.RWMutex
-	running atomic.Bool
-	cancel  context.CancelFunc
+	client       *Client
+	store        *Store
+	processor    *Processor
+	targets      map[int64]*WatchTarget
+	pollInterval time.Duration
+	mu           sync.RWMutex
+	running      atomic.Bool
+	cancel       context.CancelFunc
 }
 
 // NewCrawler creates a new Telegram crawler.
 func NewCrawler(client *Client, store *Store, processor *Processor) *Crawler {
 	return &Crawler{
-		client:    client,
-		store:     store,
-		processor: processor,
-		targets:   make(map[int64]*WatchTarget),
+		client:       client,
+		store:        store,
+		processor:    processor,
+		targets:      make(map[int64]*WatchTarget),
+		pollInterval: defaultPollInterval,
 	}
 }
 
@@ -46,19 +54,13 @@ func (c *Crawler) Store() *Store { return c.store }
 // Start begins monitoring all enabled watch targets.
 func (c *Crawler) Start(ctx context.Context) error {
 	if c.running.Load() {
-		return nil // idempotent
+		return nil
 	}
 
-	// Connect client if not already connected
-	if !c.client.IsConnected() {
-		if err := c.client.Connect(ctx); err != nil {
-			return fmt.Errorf("connect telegram client: %w", err)
-		}
-		// Wait briefly for connection
-		time.Sleep(2 * time.Second)
+	if err := c.client.Connect(ctx); err != nil {
+		return fmt.Errorf("connect telegram client: %w", err)
 	}
 
-	// Load targets from database
 	account, err := c.store.GetAccount(ctx)
 	if err != nil {
 		return fmt.Errorf("get account: %w", err)
@@ -69,51 +71,63 @@ func (c *Crawler) Start(ctx context.Context) error {
 		return fmt.Errorf("list targets: %w", err)
 	}
 
-	c.mu.Lock()
-	for _, t := range targets {
-		if t.Enabled {
-			t := t // copy
-			c.targets[t.ChatID] = &t
+	loaded := make(map[int64]*WatchTarget, len(targets))
+	for _, target := range targets {
+		if !target.Enabled {
+			continue
 		}
+		targetCopy := target
+		loaded[target.ChatID] = &targetCopy
 	}
-	c.mu.Unlock()
 
-	crawlCtx, cancel := context.WithCancel(ctx)
+	crawlCtx, cancel := context.WithCancel(context.Background())
+
+	c.mu.Lock()
+	c.targets = loaded
 	c.cancel = cancel
 	c.running.Store(true)
+	c.mu.Unlock()
 
 	go c.listenUpdates(crawlCtx)
 
-	slog.Info("telegram crawler started", "targets", len(c.targets))
+	slog.Info("telegram crawler started", "targets", len(loaded))
 	return nil
 }
 
 // Stop halts the crawler.
 func (c *Crawler) Stop() {
 	if !c.running.Load() {
-		return // idempotent
+		return
 	}
-	if c.cancel != nil {
-		c.cancel()
-	}
+
+	c.mu.Lock()
+	cancel := c.cancel
+	c.cancel = nil
 	c.running.Store(false)
+	c.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+
 	slog.Info("telegram crawler stopped")
 }
 
 // Status returns the current crawler status.
 func (c *Crawler) Status() CrawlerStatus {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	targetCount := len(c.targets)
+	c.mu.RUnlock()
 
 	status := CrawlerStatus{
-		Running:     c.running.Load(),
-		TargetCount: len(c.targets),
+		Running:       c.running.Load(),
+		TargetCount:   targetCount,
+		AccountStatus: "not_configured",
 	}
 
-	if c.client.account != nil {
-		status.AccountStatus = c.client.account.Status
-	} else {
-		status.AccountStatus = "not_configured"
+	account, err := c.store.GetAccount(context.Background())
+	if err == nil {
+		status.AccountStatus = account.Status
 	}
 
 	return status
@@ -123,7 +137,8 @@ func (c *Crawler) Status() CrawlerStatus {
 func (c *Crawler) AddTarget(target *WatchTarget) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.targets[target.ChatID] = target
+	targetCopy := *target
+	c.targets[target.ChatID] = &targetCopy
 	slog.Info("telegram target added", "chat_id", target.ChatID, "title", target.Title)
 }
 
@@ -139,47 +154,58 @@ func (c *Crawler) RemoveTarget(chatID int64) {
 func (c *Crawler) EnableTarget(chatID int64, enabled bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if enabled {
-		// Need to re-add from DB; for now just log
-		slog.Info("telegram target enabled", "chat_id", chatID)
-	} else {
+	if !enabled {
 		delete(c.targets, chatID)
 		slog.Info("telegram target disabled", "chat_id", chatID)
+		return
 	}
+	slog.Info("telegram target enabled", "chat_id", chatID)
 }
 
-// listenUpdates registers an update handler and processes incoming messages.
+// ResolveTarget resolves a @username or invite link to a WatchTarget.
+func (c *Crawler) ResolveTarget(ctx context.Context, input string) (*WatchTarget, error) {
+	api := c.client.API()
+	if api == nil {
+		return nil, fmt.Errorf("not connected")
+	}
+
+	input = strings.TrimSpace(input)
+	if isInviteLink(input) {
+		return c.resolveInviteLink(ctx, api, input)
+	}
+
+	return c.resolveUsername(ctx, api, input)
+}
+
 func (c *Crawler) listenUpdates(ctx context.Context) {
 	api := c.client.API()
 	if api == nil {
 		slog.Error("telegram crawler: no API connection")
+		c.Stop()
 		return
 	}
 
-	// Use long polling via GetUpdates pattern
-	// gotd/td handles updates through the client.Run callback
-	// We'll use a polling approach for simplicity
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+	c.pollMessages(ctx, api)
 
-	// Track last processed update info per target
-	var pts int
+	ticker := time.NewTicker(c.pollInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			c.pollMessages(ctx, api, &pts)
+			c.pollMessages(ctx, api)
 		}
 	}
 }
 
-func (c *Crawler) pollMessages(ctx context.Context, api *tg.Client, pts *int) {
+func (c *Crawler) pollMessages(ctx context.Context, api *tg.Client) {
 	c.mu.RLock()
-	targetsCopy := make(map[int64]*WatchTarget, len(c.targets))
-	for k, v := range c.targets {
-		targetsCopy[k] = v
+	targetsCopy := make([]*WatchTarget, 0, len(c.targets))
+	for _, target := range c.targets {
+		targetCopy := *target
+		targetsCopy = append(targetsCopy, &targetCopy)
 	}
 	c.mu.RUnlock()
 
@@ -187,57 +213,79 @@ func (c *Crawler) pollMessages(ctx context.Context, api *tg.Client, pts *int) {
 		return
 	}
 
-	// For each target, fetch recent messages
-	for chatID, target := range targetsCopy {
-		messages, err := c.fetchNewMessages(ctx, api, chatID, target)
+	sort.Slice(targetsCopy, func(i, j int) bool {
+		return targetsCopy[i].ChatID < targetsCopy[j].ChatID
+	})
+
+	for _, target := range targetsCopy {
+		messages, err := c.fetchNewMessages(ctx, api, target)
 		if err != nil {
-			slog.Warn("fetch messages failed", "chat_id", chatID, "title", target.Title, "err", err)
-			// Check if kicked/banned
+			slog.Warn("fetch messages failed", "chat_id", target.ChatID, "title", target.Title, "err", err)
 			if isAccessError(err) {
 				_ = c.store.SetTargetError(ctx, target.ID, err.Error())
 				c.mu.Lock()
-				delete(c.targets, chatID)
+				delete(c.targets, target.ChatID)
 				c.mu.Unlock()
 			}
 			continue
 		}
 
+		lastSeen := target.LastSeenMsgID
 		for _, msg := range messages {
-			if err := c.processor.ProcessMessage(ctx, target, msg); err != nil {
-				slog.Warn("process message failed", "chat_id", chatID, "msg_id", msg.MessageID, "err", err)
+			if msg.MessageID <= lastSeen {
+				continue
 			}
+			if err := c.processor.ProcessMessage(ctx, target, msg); err != nil {
+				slog.Warn("process message failed", "chat_id", target.ChatID, "msg_id", msg.MessageID, "err", err)
+				break
+			}
+			lastSeen = msg.MessageID
+		}
+
+		if lastSeen > target.LastSeenMsgID {
+			if err := c.store.UpdateTargetProgress(ctx, target.ID, lastSeen); err != nil {
+				slog.Warn("update target progress failed", "target_id", target.ID, "last_seen", lastSeen, "err", err)
+				continue
+			}
+			c.mu.Lock()
+			if live := c.targets[target.ChatID]; live != nil {
+				live.LastSeenMsgID = lastSeen
+			}
+			c.mu.Unlock()
 		}
 	}
 }
 
 // fetchNewMessages retrieves new messages from a chat.
-func (c *Crawler) fetchNewMessages(ctx context.Context, api *tg.Client, chatID int64, target *WatchTarget) ([]*InboundMessage, error) {
-	peer := chatIDToPeer(chatID)
+func (c *Crawler) fetchNewMessages(ctx context.Context, api *tg.Client, target *WatchTarget) ([]*InboundMessage, error) {
+	peer, err := chatIDToPeer(target)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
 		Peer:  peer,
-		Limit: 20,
+		Limit: 50,
+		MinID: int(target.LastSeenMsgID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get history: %w", err)
 	}
 
-	var msgs []*InboundMessage
-
-	switch v := resp.(type) {
+	switch typed := resp.(type) {
 	case *tg.MessagesMessages:
-		msgs = c.extractMessages(ctx, api, v.Messages)
+		return c.extractMessages(ctx, api, typed.Messages), nil
 	case *tg.MessagesMessagesSlice:
-		msgs = c.extractMessages(ctx, api, v.Messages)
+		return c.extractMessages(ctx, api, typed.Messages), nil
 	case *tg.MessagesChannelMessages:
-		msgs = c.extractMessages(ctx, api, v.Messages)
+		return c.extractMessages(ctx, api, typed.Messages), nil
+	default:
+		return nil, nil
 	}
-
-	return msgs, nil
 }
 
 func (c *Crawler) extractMessages(ctx context.Context, api *tg.Client, tgMessages []tg.MessageClass) []*InboundMessage {
-	var result []*InboundMessage
+	result := make([]*InboundMessage, 0, len(tgMessages))
 
 	for _, msgClass := range tgMessages {
 		msg, ok := msgClass.(*tg.Message)
@@ -251,28 +299,31 @@ func (c *Crawler) extractMessages(ctx context.Context, api *tg.Client, tgMessage
 			Text:      msg.Message,
 		}
 
-		// Extract sender info
 		if msg.FromID != nil {
 			switch from := msg.FromID.(type) {
 			case *tg.PeerUser:
 				inbound.SenderID = from.UserID
 			case *tg.PeerChannel:
 				inbound.SenderID = from.ChannelID
+			case *tg.PeerChat:
+				inbound.SenderID = from.ChatID
 			}
 		}
 
-		// Extract media
 		if msg.Media != nil {
 			c.extractMedia(ctx, api, msg.Media, inbound)
 		}
 
-		// Apply storage rule: must have text or supported media
 		if inbound.Text == "" && inbound.MediaType == "" {
 			continue
 		}
 
 		result = append(result, inbound)
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].MessageID < result[j].MessageID
+	})
 
 	return result
 }
@@ -289,10 +340,10 @@ func (c *Crawler) extractMedia(ctx context.Context, api *tg.Client, media tg.Mes
 		}
 		inbound.MediaType = "photo"
 		inbound.MimeType = "image/jpeg"
-		// Download photo
 		data, err := c.downloadPhoto(ctx, api, photo)
 		if err != nil {
 			slog.Warn("download photo failed", "err", err)
+			inbound.MediaType = ""
 			return
 		}
 		inbound.MediaData = data
@@ -305,31 +356,33 @@ func (c *Crawler) extractMedia(ctx context.Context, api *tg.Client, media tg.Mes
 		if !ok {
 			return
 		}
-		inbound.MimeType = doc.MimeType
+		if doc.Size > maxMediaBytes {
+			slog.Warn("skip oversized document", "size", doc.Size, "limit", maxMediaBytes)
+			return
+		}
 
-		// Determine document subtype
+		inbound.MimeType = doc.MimeType
 		for _, attr := range doc.Attributes {
-			switch attr.(type) {
+			switch typed := attr.(type) {
 			case *tg.DocumentAttributeVideo:
 				inbound.MediaType = "video"
 			case *tg.DocumentAttributeAnimated:
 				inbound.MediaType = "animation"
 			case *tg.DocumentAttributeFilename:
-				inbound.FileName = attr.(*tg.DocumentAttributeFilename).FileName
+				inbound.FileName = typed.FileName
 			}
 		}
 		if inbound.MediaType == "" {
-			// Check if it's a supported document type
 			if isSticker(doc) || isAudio(doc) {
-				return // skip unsupported types
+				return
 			}
 			inbound.MediaType = "document"
 		}
 
-		// Download document
 		data, err := c.downloadDocument(ctx, api, doc)
 		if err != nil {
 			slog.Warn("download document failed", "err", err)
+			inbound.MediaType = ""
 			return
 		}
 		inbound.MediaData = data
@@ -337,19 +390,19 @@ func (c *Crawler) extractMedia(ctx context.Context, api *tg.Client, media tg.Mes
 }
 
 func (c *Crawler) downloadPhoto(ctx context.Context, api *tg.Client, photo *tg.Photo) ([]byte, error) {
-	// Get the largest photo size
 	if len(photo.Sizes) == 0 {
 		return nil, fmt.Errorf("no photo sizes")
 	}
+
 	var bestSize tg.PhotoSizeClass
-	var maxSize int
-	for _, s := range photo.Sizes {
-		switch sz := s.(type) {
+	var maxArea int
+	for _, size := range photo.Sizes {
+		switch typed := size.(type) {
 		case *tg.PhotoSize:
-			area := sz.W * sz.H
-			if area > maxSize {
-				maxSize = area
-				bestSize = s
+			area := typed.W * typed.H
+			if area > maxArea {
+				maxArea = area
+				bestSize = size
 			}
 		}
 	}
@@ -377,8 +430,8 @@ func (c *Crawler) downloadDocument(ctx context.Context, api *tg.Client, doc *tg.
 }
 
 func (c *Crawler) downloadFileLocation(ctx context.Context, api *tg.Client, loc tg.InputFileLocationClass) ([]byte, error) {
-	const chunkSize = 1024 * 1024 // 1MB chunks
-	var data []byte
+	const chunkSize = 1024 * 1024
+	data := make([]byte, 0, chunkSize)
 	offset := 0
 
 	for {
@@ -393,7 +446,11 @@ func (c *Crawler) downloadFileLocation(ctx context.Context, api *tg.Client, loc 
 
 		file, ok := result.(*tg.UploadFile)
 		if !ok {
-			return nil, fmt.Errorf("unexpected response type")
+			return nil, fmt.Errorf("unexpected response type %T", result)
+		}
+
+		if int64(len(data))+int64(len(file.Bytes)) > maxMediaBytes {
+			return nil, fmt.Errorf("media exceeds %d bytes limit", maxMediaBytes)
 		}
 
 		data = append(data, file.Bytes...)
@@ -406,27 +463,122 @@ func (c *Crawler) downloadFileLocation(ctx context.Context, api *tg.Client, loc 
 	return data, nil
 }
 
-// chatIDToPeer converts a chat ID to an InputPeer.
-func chatIDToPeer(chatID int64) tg.InputPeerClass {
-	if chatID < 0 {
-		// Supergroups and channels have negative IDs starting with -100
-		channelID := -chatID
+func (c *Crawler) resolveUsername(ctx context.Context, api *tg.Client, input string) (*WatchTarget, error) {
+	username := strings.TrimPrefix(input, "@")
+	resolved, err := api.ContactsResolveUsername(ctx, &tg.ContactsResolveUsernameRequest{Username: username})
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve: username not found")
+	}
+
+	target := &WatchTarget{Username: username}
+	for _, chat := range resolved.Chats {
+		switch ch := chat.(type) {
+		case *tg.Channel:
+			target.AccessHash = ch.AccessHash
+			target.Title = ch.Title
+			target.ChatID = -1000000000000 - ch.ID
+			if ch.Broadcast {
+				target.ChatType = "channel"
+			} else {
+				target.ChatType = "group"
+			}
+			return target, nil
+		case *tg.Chat:
+			target.ChatID = -ch.ID
+			target.Title = ch.Title
+			target.ChatType = "group"
+			return target, nil
+		}
+	}
+
+	return nil, fmt.Errorf("could not resolve: no chat found for username")
+}
+
+func (c *Crawler) resolveInviteLink(ctx context.Context, api *tg.Client, link string) (*WatchTarget, error) {
+	hash := extractInviteHash(link)
+	if hash == "" {
+		return nil, fmt.Errorf("invalid invite link")
+	}
+
+	invite, err := api.MessagesCheckChatInvite(ctx, hash)
+	if err != nil {
+		return nil, fmt.Errorf("invite link expired or invalid")
+	}
+
+	target := &WatchTarget{}
+
+	switch inv := invite.(type) {
+	case *tg.ChatInviteAlready:
+		switch ch := inv.Chat.(type) {
+		case *tg.Channel:
+			target.AccessHash = ch.AccessHash
+			target.ChatID = -1000000000000 - ch.ID
+			target.Title = ch.Title
+			if ch.Broadcast {
+				target.ChatType = "channel"
+			} else {
+				target.ChatType = "group"
+			}
+		case *tg.Chat:
+			target.ChatID = -ch.ID
+			target.Title = ch.Title
+			target.ChatType = "group"
+		}
+		return target, nil
+
+	case *tg.ChatInvite:
+		updates, err := api.MessagesImportChatInvite(ctx, hash)
+		if err != nil {
+			return nil, fmt.Errorf("failed to join: %w", err)
+		}
+		if typed, ok := updates.(*tg.Updates); ok {
+			for _, chat := range typed.Chats {
+				switch ch := chat.(type) {
+				case *tg.Channel:
+					target.AccessHash = ch.AccessHash
+					target.ChatID = -1000000000000 - ch.ID
+					target.Title = ch.Title
+					if ch.Broadcast {
+						target.ChatType = "channel"
+					} else {
+						target.ChatType = "group"
+					}
+					return target, nil
+				case *tg.Chat:
+					target.ChatID = -ch.ID
+					target.Title = ch.Title
+					target.ChatType = "group"
+					return target, nil
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("could not resolve invite link")
+}
+
+func chatIDToPeer(target *WatchTarget) (tg.InputPeerClass, error) {
+	if target.AccessHash != 0 {
+		channelID := -target.ChatID
 		if channelID > 1000000000000 {
 			channelID -= 1000000000000
 		}
-		return &tg.InputPeerChannel{ChannelID: channelID}
+		return &tg.InputPeerChannel{ChannelID: channelID, AccessHash: target.AccessHash}, nil
 	}
-	return &tg.InputPeerChat{ChatID: chatID}
+	if target.ChatID < 0 {
+		return &tg.InputPeerChat{ChatID: -target.ChatID}, nil
+	}
+	return &tg.InputPeerChat{ChatID: target.ChatID}, nil
 }
 
-func photoSizeType(s tg.PhotoSizeClass) string {
-	switch sz := s.(type) {
+func photoSizeType(size tg.PhotoSizeClass) string {
+	switch typed := size.(type) {
 	case *tg.PhotoSize:
-		return sz.Type
+		return typed.Type
 	case *tg.PhotoCachedSize:
-		return sz.Type
+		return typed.Type
 	case *tg.PhotoStrippedSize:
-		return sz.Type
+		return typed.Type
 	default:
 		return "x"
 	}
@@ -455,178 +607,25 @@ func isAccessError(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return contains(msg, "CHANNEL_PRIVATE") ||
-		contains(msg, "CHAT_FORBIDDEN") ||
-		contains(msg, "USER_BANNED_IN_CHANNEL") ||
-		contains(msg, "CHANNEL_INVALID")
-}
-
-func contains(s, sub string) bool {
-	return len(s) >= len(sub) && searchString(s, sub)
-}
-
-func searchString(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}
-
-// ResolveTarget resolves a @username or invite link to a WatchTarget.
-func (c *Crawler) ResolveTarget(ctx context.Context, input string) (*WatchTarget, error) {
-	api := c.client.API()
-	if api == nil {
-		return nil, fmt.Errorf("not connected")
-	}
-
-	input = trimString(input)
-
-	if isInviteLink(input) {
-		return c.resolveInviteLink(ctx, api, input)
-	}
-
-	return c.resolveUsername(ctx, api, input)
-}
-
-func (c *Crawler) resolveUsername(ctx context.Context, api *tg.Client, input string) (*WatchTarget, error) {
-	username := input
-	if len(username) > 0 && username[0] == '@' {
-		username = username[1:]
-	}
-
-	resolved, err := api.ContactsResolveUsername(ctx, &tg.ContactsResolveUsernameRequest{Username: username})
-	if err != nil {
-		return nil, fmt.Errorf("could not resolve: username not found")
-	}
-
-	target := &WatchTarget{Username: username}
-
-	for _, chat := range resolved.Chats {
-		switch ch := chat.(type) {
-		case *tg.Channel:
-			target.ChatID = ch.ID
-			target.Title = ch.Title
-			if ch.Broadcast {
-				target.ChatType = "channel"
-			} else {
-				target.ChatType = "group"
-			}
-			// Convert to supergroup/channel ID format
-			target.ChatID = -1000000000000 - ch.ID
-			return target, nil
-		case *tg.Chat:
-			target.ChatID = -ch.ID
-			target.Title = ch.Title
-			target.ChatType = "group"
-			return target, nil
-		}
-	}
-
-	return nil, fmt.Errorf("could not resolve: no chat found for username")
-}
-
-func (c *Crawler) resolveInviteLink(ctx context.Context, api *tg.Client, link string) (*WatchTarget, error) {
-	hash := extractInviteHash(link)
-	if hash == "" {
-		return nil, fmt.Errorf("invalid invite link")
-	}
-
-	invite, err := api.MessagesCheckChatInvite(ctx, hash)
-	if err != nil {
-		return nil, fmt.Errorf("invite link expired or invalid")
-	}
-
-	target := &WatchTarget{}
-
-	switch inv := invite.(type) {
-	case *tg.ChatInviteAlready:
-		// Already a member
-		switch ch := inv.Chat.(type) {
-		case *tg.Channel:
-			target.ChatID = -1000000000000 - ch.ID
-			target.Title = ch.Title
-			if ch.Broadcast {
-				target.ChatType = "channel"
-			} else {
-				target.ChatType = "group"
-			}
-		case *tg.Chat:
-			target.ChatID = -ch.ID
-			target.Title = ch.Title
-			target.ChatType = "group"
-		}
-		return target, nil
-
-	case *tg.ChatInvite:
-		// Need to join
-		updates, err := api.MessagesImportChatInvite(ctx, hash)
-		if err != nil {
-			return nil, fmt.Errorf("failed to join: %w", err)
-		}
-		// Extract chat info from updates
-		if u, ok := updates.(*tg.Updates); ok {
-			for _, chat := range u.Chats {
-				switch ch := chat.(type) {
-				case *tg.Channel:
-					target.ChatID = -1000000000000 - ch.ID
-					target.Title = ch.Title
-					if ch.Broadcast {
-						target.ChatType = "channel"
-					} else {
-						target.ChatType = "group"
-					}
-					return target, nil
-				case *tg.Chat:
-					target.ChatID = -ch.ID
-					target.Title = ch.Title
-					target.ChatType = "group"
-					return target, nil
-				}
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("could not resolve invite link")
+	return strings.Contains(msg, "CHANNEL_PRIVATE") ||
+		strings.Contains(msg, "CHAT_FORBIDDEN") ||
+		strings.Contains(msg, "USER_BANNED_IN_CHANNEL") ||
+		strings.Contains(msg, "CHANNEL_INVALID") ||
+		strings.Contains(msg, "ACCESS_HASH_INVALID")
 }
 
 func isInviteLink(s string) bool {
-	return len(s) > 5 && (hasPrefix(s, "https://t.me/+") || hasPrefix(s, "https://t.me/joinchat/") || hasPrefix(s, "t.me/+"))
-}
-
-func hasPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
+	return strings.HasPrefix(s, "https://t.me/+") ||
+		strings.HasPrefix(s, "https://t.me/joinchat/") ||
+		strings.HasPrefix(s, "t.me/+")
 }
 
 func extractInviteHash(link string) string {
-	// https://t.me/+HASH or https://t.me/joinchat/HASH
-	if i := lastIndex(link, "+"); i >= 0 {
+	if i := strings.LastIndex(link, "+"); i >= 0 {
 		return link[i+1:]
 	}
-	if i := lastIndex(link, "joinchat/"); i >= 0 {
+	if i := strings.LastIndex(link, "joinchat/"); i >= 0 {
 		return link[i+9:]
 	}
 	return ""
-}
-
-func lastIndex(s, sub string) int {
-	for i := len(s) - len(sub); i >= 0; i-- {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
-}
-
-func trimString(s string) string {
-	start := 0
-	end := len(s)
-	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n') {
-		start++
-	}
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n') {
-		end--
-	}
-	return s[start:end]
 }

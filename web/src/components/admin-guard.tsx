@@ -10,7 +10,7 @@ export function AdminGuard() {
     tgApi
       .me()
       .then((u) => {
-        if (u.role === "super_admin" || u.role === "admin") {
+        if (u.role === "superadmin" || u.role === "admin") {
           setUser(u);
         } else {
           setUser(null);

@@ -17,7 +17,7 @@ export function LoginPage() {
     setLoading(true);
     try {
       const res = await tgApi.login(username, password);
-      if (res.user.role !== "super_admin" && res.user.role !== "admin") {
+      if (res.user.role !== "superadmin" && res.user.role !== "admin") {
         setError("需要管理员权限");
         return;
       }

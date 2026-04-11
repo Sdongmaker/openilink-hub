@@ -16,20 +16,27 @@ import (
 
 // Processor handles message classification and media storage.
 type Processor struct {
-	ai       store.AIConfig
+	aiConfig func() store.AIConfig
 	storage  storage.Store
 	store    *Store
 	sem      chan struct{} // media download semaphore
 }
 
 // NewProcessor creates a new message processor.
-func NewProcessor(aiCfg store.AIConfig, objStore storage.Store, tgStore *Store) *Processor {
+func NewProcessor(aiConfig func() store.AIConfig, objStore storage.Store, tgStore *Store) *Processor {
 	return &Processor{
-		ai:      aiCfg,
-		storage: objStore,
-		store:   tgStore,
-		sem:     make(chan struct{}, 5),
+		aiConfig: aiConfig,
+		storage:  objStore,
+		store:    tgStore,
+		sem:      make(chan struct{}, 5),
 	}
+}
+
+func (p *Processor) resolveAIConfig() store.AIConfig {
+	if p.aiConfig == nil {
+		return store.AIConfig{}
+	}
+	return p.aiConfig()
 }
 
 // adResult is the expected JSON response from the AI ad classifier.
@@ -44,7 +51,8 @@ Message: %s`
 
 // ClassifyAd calls the AI to determine if text is an advertisement.
 func (p *Processor) ClassifyAd(ctx context.Context, text string) (bool, float64) {
-	if text == "" || p.ai.APIKey == "" {
+	cfg := p.resolveAIConfig()
+	if text == "" || cfg.APIKey == "" {
 		return false, 0
 	}
 
@@ -53,7 +61,7 @@ func (p *Processor) ClassifyAd(ctx context.Context, text string) (bool, float64)
 		{Role: "user", Content: prompt},
 	}
 
-	result, err := ai.CompleteMessages(ctx, p.ai, messages, nil)
+	result, err := ai.CompleteMessages(ctx, cfg, messages, nil)
 	if err != nil {
 		slog.Warn("ad classification failed", "err", err)
 		return false, 0

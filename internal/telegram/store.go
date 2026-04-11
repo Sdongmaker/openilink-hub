@@ -4,7 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
+)
+
+type Dialect string
+
+const (
+	DialectSQLite   Dialect = "sqlite"
+	DialectPostgres Dialect = "postgres"
 )
 
 // TGAccount represents a Telegram user account.
@@ -21,15 +29,17 @@ type TGAccount struct {
 
 // WatchTarget represents a monitored Telegram channel or group.
 type WatchTarget struct {
-	ID        int64  `json:"id"`
-	AccountID int64  `json:"account_id"`
-	ChatID    int64  `json:"chat_id"`
-	ChatType  string `json:"chat_type"` // channel, group
-	Title     string `json:"title"`
-	Username  string `json:"username,omitempty"`
-	Enabled   bool   `json:"enabled"`
-	LastError string `json:"last_error,omitempty"`
-	CreatedAt int64  `json:"created_at"`
+	ID            int64  `json:"id"`
+	AccountID     int64  `json:"account_id"`
+	ChatID        int64  `json:"chat_id"`
+	AccessHash    int64  `json:"access_hash,omitempty"`
+	ChatType      string `json:"chat_type"` // channel, group
+	Title         string `json:"title"`
+	Username      string `json:"username,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	LastError     string `json:"last_error,omitempty"`
+	LastSeenMsgID int64  `json:"last_seen_msg_id,omitempty"`
+	CreatedAt     int64  `json:"created_at"`
 }
 
 // TGMessage represents a collected Telegram message.
@@ -81,30 +91,75 @@ type DBTX interface {
 
 // Store provides data access for Telegram crawler tables.
 type Store struct {
-	db DBTX
+	db      DBTX
+	dialect Dialect
 }
 
 // NewStore creates a new Telegram store using the given database connection.
-func NewStore(db DBTX) *Store {
-	return &Store{db: db}
+func NewStore(db DBTX, dialect Dialect) *Store {
+	return &Store{db: db, dialect: dialect}
+}
+
+func (s *Store) exec(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return s.db.ExecContext(ctx, s.rebind(query), args...)
+}
+
+func (s *Store) query(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return s.db.QueryContext(ctx, s.rebind(query), args...)
+}
+
+func (s *Store) queryRow(ctx context.Context, query string, args ...any) *sql.Row {
+	return s.db.QueryRowContext(ctx, s.rebind(query), args...)
+}
+
+func (s *Store) rebind(query string) string {
+	if s.dialect != DialectPostgres {
+		return query
+	}
+
+	var builder strings.Builder
+	placeholder := 1
+	for i := 0; i < len(query); i++ {
+		if query[i] == '?' {
+			builder.WriteString(fmt.Sprintf("$%d", placeholder))
+			placeholder++
+			continue
+		}
+		builder.WriteByte(query[i])
+	}
+
+	return builder.String()
 }
 
 // --- Account ---
 
 func (s *Store) CreateAccount(ctx context.Context, phone string) (*TGAccount, error) {
 	now := time.Now().Unix()
-	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO tg_accounts (phone, status, created_at, updated_at) VALUES (?, 'auth_required', ?, ?)`,
-		phone, now, now)
-	if err != nil {
-		return nil, fmt.Errorf("create tg account: %w", err)
+	var id int64
+	if s.dialect == DialectPostgres {
+		err := s.queryRow(ctx,
+			`INSERT INTO tg_accounts (phone, status, created_at, updated_at) VALUES (?, 'auth_required', ?, ?) RETURNING id`,
+			phone, now, now,
+		).Scan(&id)
+		if err != nil {
+			return nil, fmt.Errorf("create tg account: %w", err)
+		}
+	} else {
+		res, err := s.exec(ctx,
+			`INSERT INTO tg_accounts (phone, status, created_at, updated_at) VALUES (?, 'auth_required', ?, ?)`,
+			phone, now, now,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create tg account: %w", err)
+		}
+		id, _ = res.LastInsertId()
 	}
-	id, _ := res.LastInsertId()
+
 	return &TGAccount{ID: id, Phone: phone, Status: "auth_required", CreatedAt: now, UpdatedAt: now}, nil
 }
 
 func (s *Store) GetAccount(ctx context.Context) (*TGAccount, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := s.queryRow(ctx,
 		`SELECT id, phone, session_data, status, last_test_at, last_test_ok, created_at, updated_at FROM tg_accounts ORDER BY id LIMIT 1`)
 	a := &TGAccount{}
 	var lastTestAt sql.NullInt64
@@ -120,7 +175,7 @@ func (s *Store) GetAccount(ctx context.Context) (*TGAccount, error) {
 
 func (s *Store) UpdateAccountStatus(ctx context.Context, id int64, status string) error {
 	now := time.Now().Unix()
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.exec(ctx,
 		`UPDATE tg_accounts SET status = ?, updated_at = ? WHERE id = ?`,
 		status, now, id)
 	return err
@@ -128,7 +183,7 @@ func (s *Store) UpdateAccountStatus(ctx context.Context, id int64, status string
 
 func (s *Store) UpdateAccountSession(ctx context.Context, id int64, sessionData []byte) error {
 	now := time.Now().Unix()
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.exec(ctx,
 		`UPDATE tg_accounts SET session_data = ?, status = 'active', updated_at = ? WHERE id = ?`,
 		sessionData, now, id)
 	return err
@@ -136,20 +191,20 @@ func (s *Store) UpdateAccountSession(ctx context.Context, id int64, sessionData 
 
 func (s *Store) UpdateAccountTest(ctx context.Context, id int64, ok bool) error {
 	now := time.Now().Unix()
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.exec(ctx,
 		`UPDATE tg_accounts SET last_test_at = ?, last_test_ok = ?, updated_at = ? WHERE id = ?`,
 		now, ok, now, id)
 	return err
 }
 
 func (s *Store) DeleteAccount(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM tg_accounts WHERE id = ?`, id)
+	_, err := s.exec(ctx, `DELETE FROM tg_accounts WHERE id = ?`, id)
 	return err
 }
 
 func (s *Store) HasActiveAccount(ctx context.Context) bool {
 	var count int
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tg_accounts WHERE status = 'active'`).Scan(&count)
+	_ = s.queryRow(ctx, `SELECT COUNT(*) FROM tg_accounts WHERE status = 'active'`).Scan(&count)
 	return count > 0
 }
 
@@ -157,21 +212,38 @@ func (s *Store) HasActiveAccount(ctx context.Context) bool {
 
 func (s *Store) CreateTarget(ctx context.Context, t *WatchTarget) error {
 	now := time.Now().Unix()
-	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO tg_watch_targets (account_id, chat_id, chat_type, title, username, enabled, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)`,
-		t.AccountID, t.ChatID, t.ChatType, t.Title, t.Username, now)
-	if err != nil {
-		return fmt.Errorf("create target: %w", err)
-	}
-	t.ID, _ = res.LastInsertId()
-	t.CreatedAt = now
 	t.Enabled = true
+	t.LastSeenMsgID = 0
+
+	if s.dialect == DialectPostgres {
+		err := s.queryRow(ctx,
+			`INSERT INTO tg_watch_targets (account_id, chat_id, access_hash, chat_type, title, username, enabled, last_seen_msg_id, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			t.AccountID, t.ChatID, t.AccessHash, t.ChatType, t.Title, t.Username, t.Enabled, t.LastSeenMsgID, now,
+		).Scan(&t.ID)
+		if err != nil {
+			return fmt.Errorf("create target: %w", err)
+		}
+	} else {
+		res, err := s.exec(ctx,
+			`INSERT INTO tg_watch_targets (account_id, chat_id, access_hash, chat_type, title, username, enabled, last_seen_msg_id, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			t.AccountID, t.ChatID, t.AccessHash, t.ChatType, t.Title, t.Username, t.Enabled, t.LastSeenMsgID, now,
+		)
+		if err != nil {
+			return fmt.Errorf("create target: %w", err)
+		}
+		t.ID, _ = res.LastInsertId()
+	}
+
+	t.CreatedAt = now
 	return nil
 }
 
 func (s *Store) ListTargets(ctx context.Context, accountID int64) ([]WatchTarget, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, account_id, chat_id, chat_type, title, username, enabled, last_error, created_at FROM tg_watch_targets WHERE account_id = ? ORDER BY id`,
+	rows, err := s.query(ctx,
+		`SELECT id, account_id, chat_id, access_hash, chat_type, title, username, enabled, last_error, last_seen_msg_id, created_at
+		 FROM tg_watch_targets WHERE account_id = ? ORDER BY id`,
 		accountID)
 	if err != nil {
 		return nil, err
@@ -181,39 +253,51 @@ func (s *Store) ListTargets(ctx context.Context, accountID int64) ([]WatchTarget
 	for rows.Next() {
 		var t WatchTarget
 		var username, lastError sql.NullString
-		if err := rows.Scan(&t.ID, &t.AccountID, &t.ChatID, &t.ChatType, &t.Title, &username, &t.Enabled, &lastError, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.AccountID, &t.ChatID, &t.AccessHash, &t.ChatType, &t.Title, &username, &t.Enabled, &lastError, &t.LastSeenMsgID, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		t.Username = username.String
 		t.LastError = lastError.String
 		targets = append(targets, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return targets, nil
 }
 
 func (s *Store) UpdateTarget(ctx context.Context, id int64, enabled bool) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.exec(ctx,
 		`UPDATE tg_watch_targets SET enabled = ?, last_error = NULL WHERE id = ?`, enabled, id)
 	return err
 }
 
 func (s *Store) SetTargetError(ctx context.Context, id int64, errMsg string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE tg_watch_targets SET enabled = 0, last_error = ? WHERE id = ?`, errMsg, id)
+	_, err := s.exec(ctx,
+		`UPDATE tg_watch_targets SET enabled = false, last_error = ? WHERE id = ?`, errMsg, id)
+	return err
+}
+
+func (s *Store) UpdateTargetProgress(ctx context.Context, id, lastSeenMsgID int64) error {
+	_, err := s.exec(ctx,
+		`UPDATE tg_watch_targets SET last_seen_msg_id = ? WHERE id = ?`,
+		lastSeenMsgID, id,
+	)
 	return err
 }
 
 func (s *Store) DeleteTarget(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM tg_watch_targets WHERE id = ?`, id)
+	_, err := s.exec(ctx, `DELETE FROM tg_watch_targets WHERE id = ?`, id)
 	return err
 }
 
 func (s *Store) GetTarget(ctx context.Context, id int64) (*WatchTarget, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, account_id, chat_id, chat_type, title, username, enabled, last_error, created_at FROM tg_watch_targets WHERE id = ?`, id)
+	row := s.queryRow(ctx,
+		`SELECT id, account_id, chat_id, access_hash, chat_type, title, username, enabled, last_error, last_seen_msg_id, created_at
+		 FROM tg_watch_targets WHERE id = ?`, id)
 	var t WatchTarget
 	var username, lastError sql.NullString
-	err := row.Scan(&t.ID, &t.AccountID, &t.ChatID, &t.ChatType, &t.Title, &username, &t.Enabled, &lastError, &t.CreatedAt)
+	err := row.Scan(&t.ID, &t.AccountID, &t.ChatID, &t.AccessHash, &t.ChatType, &t.Title, &username, &t.Enabled, &lastError, &t.LastSeenMsgID, &t.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -226,14 +310,32 @@ func (s *Store) GetTarget(ctx context.Context, id int64) (*WatchTarget, error) {
 
 func (s *Store) InsertMessage(ctx context.Context, m *TGMessage) error {
 	now := time.Now().Unix()
-	res, err := s.db.ExecContext(ctx,
+	if s.dialect == DialectPostgres {
+		err := s.queryRow(ctx,
+			`INSERT INTO tg_messages (target_id, tg_message_id, sender_id, sender_name, content_type, text_content, media_key, is_ad, ad_confidence, created_at, stored_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 ON CONFLICT (tg_message_id, target_id) DO NOTHING
+			 RETURNING id`,
+			m.TargetID, m.TGMessageID, m.SenderID, m.SenderName, m.ContentType, m.TextContent, m.MediaKey, m.IsAd, m.AdConfidence, m.CreatedAt, now,
+		).Scan(&m.ID)
+		if err != nil && err != sql.ErrNoRows {
+			return fmt.Errorf("insert tg message: %w", err)
+		}
+		m.StoredAt = now
+		return nil
+	}
+
+	res, err := s.exec(ctx,
 		`INSERT OR IGNORE INTO tg_messages (target_id, tg_message_id, sender_id, sender_name, content_type, text_content, media_key, is_ad, ad_confidence, created_at, stored_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.TargetID, m.TGMessageID, m.SenderID, m.SenderName, m.ContentType, m.TextContent, m.MediaKey, m.IsAd, m.AdConfidence, m.CreatedAt, now)
+		m.TargetID, m.TGMessageID, m.SenderID, m.SenderName, m.ContentType, m.TextContent, m.MediaKey, m.IsAd, m.AdConfidence, m.CreatedAt, now,
+	)
 	if err != nil {
 		return fmt.Errorf("insert tg message: %w", err)
 	}
-	m.ID, _ = res.LastInsertId()
+	if rows, rowsErr := res.RowsAffected(); rowsErr == nil && rows > 0 {
+		m.ID, _ = res.LastInsertId()
+	}
 	m.StoredAt = now
 	return nil
 }
@@ -246,39 +348,35 @@ func (s *Store) ListMessages(ctx context.Context, filter MessageFilter, page, pe
 		perPage = 20
 	}
 
-	where := "1=1"
+	whereParts := []string{"1=1"}
 	var args []any
 	if filter.TargetID != nil {
-		where += " AND m.target_id = ?"
+		whereParts = append(whereParts, "m.target_id = ?")
 		args = append(args, *filter.TargetID)
 	}
 	if filter.IsAd != nil {
-		where += " AND m.is_ad = ?"
-		if *filter.IsAd {
-			args = append(args, 1)
-		} else {
-			args = append(args, 0)
-		}
+		whereParts = append(whereParts, "m.is_ad = ?")
+		args = append(args, *filter.IsAd)
 	}
 	if filter.ContentType != "" {
-		where += " AND m.content_type = ?"
+		whereParts = append(whereParts, "m.content_type = ?")
 		args = append(args, filter.ContentType)
 	}
+	where := strings.Join(whereParts, " AND ")
 
 	var total int
-	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM tg_messages m WHERE %s`, where)
-	if err := s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+	countQuery := `SELECT COUNT(*) FROM tg_messages m WHERE ` + where
+	if err := s.queryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	offset := (page - 1) * perPage
-	query := fmt.Sprintf(
-		`SELECT m.id, m.target_id, t.title, m.tg_message_id, m.sender_id, m.sender_name, m.content_type, m.text_content, m.media_key, m.is_ad, m.ad_confidence, m.created_at, m.stored_at
+	query := `SELECT m.id, m.target_id, t.title, m.tg_message_id, m.sender_id, m.sender_name, m.content_type, m.text_content, m.media_key, m.is_ad, m.ad_confidence, m.created_at, m.stored_at
 		 FROM tg_messages m LEFT JOIN tg_watch_targets t ON m.target_id = t.id
-		 WHERE %s ORDER BY m.created_at DESC LIMIT ? OFFSET ?`, where)
+		 WHERE ` + where + ` ORDER BY m.created_at DESC LIMIT ? OFFSET ?`
 	args = append(args, perPage, offset)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -297,11 +395,14 @@ func (s *Store) ListMessages(ctx context.Context, filter MessageFilter, page, pe
 		m.TargetTitle = title.String
 		msgs = append(msgs, m)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 	return msgs, total, nil
 }
 
 func (s *Store) GetMessage(ctx context.Context, id int64) (*TGMessageWithTarget, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := s.queryRow(ctx,
 		`SELECT m.id, m.target_id, t.title, m.tg_message_id, m.sender_id, m.sender_name, m.content_type, m.text_content, m.media_key, m.is_ad, m.ad_confidence, m.created_at, m.stored_at
 		 FROM tg_messages m LEFT JOIN tg_watch_targets t ON m.target_id = t.id WHERE m.id = ?`, id)
 	var m TGMessageWithTarget
@@ -318,8 +419,8 @@ func (s *Store) GetMessage(ctx context.Context, id int64) (*TGMessageWithTarget,
 
 func (s *Store) GetStats(ctx context.Context) (todayTotal, todayAds int, err error) {
 	startOfDay := time.Now().Truncate(24 * time.Hour).Unix()
-	err = s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*), COALESCE(SUM(CASE WHEN is_ad = 1 THEN 1 ELSE 0 END), 0) FROM tg_messages WHERE created_at >= ?`,
+	err = s.queryRow(ctx,
+		`SELECT COUNT(*), COALESCE(SUM(CASE WHEN is_ad THEN 1 ELSE 0 END), 0) FROM tg_messages WHERE created_at >= ?`,
 		startOfDay).Scan(&todayTotal, &todayAds)
 	return
 }
@@ -328,7 +429,7 @@ func (s *Store) GetStats(ctx context.Context) (todayTotal, todayAds int, err err
 func (s *Store) TodayCountByTarget(ctx context.Context, targetID int64) int {
 	startOfDay := time.Now().Truncate(24 * time.Hour).Unix()
 	var count int
-	_ = s.db.QueryRowContext(ctx,
+	_ = s.queryRow(ctx,
 		`SELECT COUNT(*) FROM tg_messages WHERE target_id = ? AND created_at >= ?`,
 		targetID, startOfDay).Scan(&count)
 	return count
@@ -337,7 +438,7 @@ func (s *Store) TodayCountByTarget(ctx context.Context, targetID int64) int {
 // TelegramFileCount returns the total number of messages with media.
 func (s *Store) TelegramFileCount(ctx context.Context) int {
 	var count int
-	_ = s.db.QueryRowContext(ctx,
+	_ = s.queryRow(ctx,
 		`SELECT COUNT(*) FROM tg_messages WHERE media_key IS NOT NULL AND media_key != ''`).Scan(&count)
 	return count
 }

@@ -25,7 +25,13 @@ export function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-    const timer = setInterval(fetchData, 10000);
+
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchData();
+      }
+    }, 10000);
+
     return () => clearInterval(timer);
   }, []);
 

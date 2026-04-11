@@ -2,20 +2,24 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/openilink/openilink-hub/internal/telegram"
 )
 
+var telegramPhonePattern = regexp.MustCompile(`^\+[1-9][0-9]{5,19}$`)
+
 // --- Telegram Account ---
 
 func (s *Server) handleTelegramGetAccount(w http.ResponseWriter, r *http.Request) {
 	acc, err := s.TGCrawler.Store().GetAccount(r.Context())
 	if err != nil {
-		http.Error(w, `{"error":"no account configured"}`, http.StatusNotFound)
+		jsonError(w, "no account configured", http.StatusNotFound)
 		return
 	}
 	writeJSON(w, acc)
@@ -25,14 +29,18 @@ func (s *Server) handleTelegramCreateAccount(w http.ResponseWriter, r *http.Requ
 	var req struct {
 		Phone string `json:"phone"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Phone == "" {
-		http.Error(w, `{"error":"phone required"}`, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "phone required", http.StatusBadRequest)
+		return
+	}
+	if !validTelegramPhone(req.Phone) {
+		jsonError(w, "invalid phone format, expected +<countrycode><number>", http.StatusBadRequest)
 		return
 	}
 	acc, err := s.TGCrawler.Store().CreateAccount(r.Context(), req.Phone)
 	if err != nil {
 		slog.Error("create tg account", "err", err)
-		http.Error(w, `{"error":"failed to create account"}`, http.StatusInternalServerError)
+		jsonError(w, "failed to create account", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, acc)
@@ -41,12 +49,15 @@ func (s *Server) handleTelegramCreateAccount(w http.ResponseWriter, r *http.Requ
 func (s *Server) handleTelegramDeleteAccount(w http.ResponseWriter, r *http.Request) {
 	acc, err := s.TGCrawler.Store().GetAccount(r.Context())
 	if err != nil {
-		http.Error(w, `{"error":"no account"}`, http.StatusNotFound)
+		jsonError(w, "no account", http.StatusNotFound)
 		return
 	}
 	s.TGCrawler.Stop()
 	s.TGClient.Stop()
-	_ = s.TGCrawler.Store().DeleteAccount(r.Context(), acc.ID)
+	if err := s.TGCrawler.Store().DeleteAccount(r.Context(), acc.ID); err != nil {
+		jsonError(w, "failed to delete account", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -56,14 +67,18 @@ func (s *Server) handleTelegramSendCode(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Phone string `json:"phone"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Phone == "" {
-		http.Error(w, `{"error":"phone required"}`, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "phone required", http.StatusBadRequest)
+		return
+	}
+	if !validTelegramPhone(req.Phone) {
+		jsonError(w, "invalid phone format, expected +<countrycode><number>", http.StatusBadRequest)
 		return
 	}
 	result, err := s.TGClient.StartAuth(r.Context(), req.Phone)
 	if err != nil {
 		slog.Error("telegram send code", "err", err)
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, map[string]string{"status": result})
@@ -71,15 +86,23 @@ func (s *Server) handleTelegramSendCode(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleTelegramVerify(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Code       string `json:"code"`
+		Code        string `json:"code"`
 		Password2FA string `json:"password_2fa,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
-		http.Error(w, `{"error":"code required"}`, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "code required", http.StatusBadRequest)
+		return
+	}
+	if req.Code == "" && req.Password2FA == "" {
+		jsonError(w, "code or password_2fa required", http.StatusBadRequest)
 		return
 	}
 	if err := s.TGClient.VerifyCode(r.Context(), req.Code, req.Password2FA); err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		status := http.StatusBadRequest
+		if errors.Is(err, telegram.ErrPasswordRequired) {
+			status = http.StatusConflict
+		}
+		jsonError(w, err.Error(), status)
 		return
 	}
 	writeJSON(w, map[string]string{"status": "verified"})
@@ -90,7 +113,7 @@ func (s *Server) handleTelegramVerify(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTelegramTest(w http.ResponseWriter, r *http.Request) {
 	result, err := s.TGClient.Test(r.Context())
 	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, result)
@@ -106,7 +129,7 @@ func (s *Server) handleTelegramListTargets(w http.ResponseWriter, r *http.Reques
 	}
 	targets, err := s.TGCrawler.Store().ListTargets(r.Context(), acc.ID)
 	if err != nil {
-		http.Error(w, `{"error":"failed to list targets"}`, http.StatusInternalServerError)
+		jsonError(w, "failed to list targets", http.StatusInternalServerError)
 		return
 	}
 	// Enrich with today_count
@@ -131,30 +154,31 @@ func (s *Server) handleTelegramCreateTarget(w http.ResponseWriter, r *http.Reque
 	var req struct {
 		Input string `json:"input"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Input == "" {
-		http.Error(w, `{"error":"input required"}`, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Input) == "" {
+		jsonError(w, "input required", http.StatusBadRequest)
 		return
 	}
 
 	target, err := s.TGCrawler.ResolveTarget(r.Context(), req.Input)
 	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	acc, err := s.TGCrawler.Store().GetAccount(r.Context())
 	if err != nil {
-		http.Error(w, `{"error":"no account configured"}`, http.StatusBadRequest)
+		jsonError(w, "no account configured", http.StatusBadRequest)
 		return
 	}
 	target.AccountID = acc.ID
 
 	if err := s.TGCrawler.Store().CreateTarget(r.Context(), target); err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
-			http.Error(w, `{"error":"target already exists"}`, http.StatusConflict)
+		lowerErr := strings.ToLower(err.Error())
+		if strings.Contains(lowerErr, "unique") || strings.Contains(lowerErr, "duplicate") {
+			jsonError(w, "target already exists", http.StatusConflict)
 			return
 		}
-		http.Error(w, `{"error":"failed to create target"}`, http.StatusInternalServerError)
+		jsonError(w, "failed to create target", http.StatusInternalServerError)
 		return
 	}
 
@@ -166,25 +190,25 @@ func (s *Server) handleTelegramCreateTarget(w http.ResponseWriter, r *http.Reque
 func (s *Server) handleTelegramUpdateTarget(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
 	var req struct {
 		Enabled *bool `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Enabled == nil {
-		http.Error(w, `{"error":"enabled required"}`, http.StatusBadRequest)
+		jsonError(w, "enabled required", http.StatusBadRequest)
 		return
 	}
 
 	target, err := s.TGCrawler.Store().GetTarget(r.Context(), id)
 	if err != nil {
-		http.Error(w, `{"error":"target not found"}`, http.StatusNotFound)
+		jsonError(w, "target not found", http.StatusNotFound)
 		return
 	}
 
 	if err := s.TGCrawler.Store().UpdateTarget(r.Context(), id, *req.Enabled); err != nil {
-		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		jsonError(w, "update failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -201,16 +225,16 @@ func (s *Server) handleTelegramUpdateTarget(w http.ResponseWriter, r *http.Reque
 func (s *Server) handleTelegramDeleteTarget(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
 	target, err := s.TGCrawler.Store().GetTarget(r.Context(), id)
 	if err != nil {
-		http.Error(w, `{"error":"target not found"}`, http.StatusNotFound)
+		jsonError(w, "target not found", http.StatusNotFound)
 		return
 	}
 	if err := s.TGCrawler.Store().DeleteTarget(r.Context(), id); err != nil {
-		http.Error(w, `{"error":"delete failed"}`, http.StatusInternalServerError)
+		jsonError(w, "delete failed", http.StatusInternalServerError)
 		return
 	}
 	s.TGCrawler.RemoveTarget(target.ChatID)
@@ -238,7 +262,7 @@ func (s *Server) handleTelegramListMessages(w http.ResponseWriter, r *http.Reque
 
 	msgs, total, err := s.TGCrawler.Store().ListMessages(r.Context(), filter, page, perPage)
 	if err != nil {
-		http.Error(w, `{"error":"list failed"}`, http.StatusInternalServerError)
+		jsonError(w, "list failed", http.StatusInternalServerError)
 		return
 	}
 	if msgs == nil {
@@ -255,12 +279,12 @@ func (s *Server) handleTelegramListMessages(w http.ResponseWriter, r *http.Reque
 func (s *Server) handleTelegramGetMessage(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
 	msg, err := s.TGCrawler.Store().GetMessage(r.Context(), id)
 	if err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		jsonError(w, "not found", http.StatusNotFound)
 		return
 	}
 	writeJSON(w, msg)
@@ -274,7 +298,7 @@ func (s *Server) handleTelegramStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTelegramCrawlerStart(w http.ResponseWriter, r *http.Request) {
 	if err := s.TGCrawler.Start(r.Context()); err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, map[string]string{"status": "started"})
@@ -329,8 +353,12 @@ func (s *Server) handleTelegramStats(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStorageSettings(w http.ResponseWriter, r *http.Request) {
 	cfg := s.Config
 	accessKeyMasked := ""
-	if len(cfg.StorageAccessKey) > 4 {
-		accessKeyMasked = cfg.StorageAccessKey[:4] + "****" + cfg.StorageAccessKey[len(cfg.StorageAccessKey)-4:]
+	if cfg.StorageAccessKey != "" {
+		if len(cfg.StorageAccessKey) > 4 {
+			accessKeyMasked = "****" + cfg.StorageAccessKey[len(cfg.StorageAccessKey)-4:]
+		} else {
+			accessKeyMasked = "****"
+		}
 	}
 
 	fileCount := s.TGCrawler.Store().TelegramFileCount(r.Context())
@@ -351,9 +379,8 @@ func (s *Server) handleStorageTest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "storage not configured"})
 		return
 	}
-	// Test by putting and getting a small test object
 	ctx := r.Context()
-	testKey := "__healthcheck__"
+	testKey := "telegram/healthcheck.txt"
 	_, err := s.ObjectStore.Put(ctx, testKey, "text/plain", []byte("ok"))
 	if err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
@@ -366,4 +393,8 @@ func (s *Server) handleStorageTest(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+func validTelegramPhone(phone string) bool {
+	return telegramPhonePattern.MatchString(strings.TrimSpace(phone))
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -52,6 +53,44 @@ func openStore(dsn string) (store.Store, error) {
 		return postgres.Open(dsn)
 	}
 	return sqlite.Open(dsn)
+}
+
+func resolveTelegramAIConfig(cfgStore store.Store) store.AIConfig {
+	global, err := cfgStore.ListConfigByPrefix("ai.")
+	if err != nil || global["ai.api_key"] == "" {
+		return store.AIConfig{}
+	}
+
+	var cfg store.AIConfig
+	cfg.Enabled = true
+	cfg.Source = "builtin"
+	cfg.BaseURL = global["ai.base_url"]
+	cfg.APIKey = global["ai.api_key"]
+	cfg.Model = global["ai.model"]
+	cfg.SystemPrompt = global["ai.system_prompt"]
+	cfg.HideThinking = global["ai.hide_thinking"] == "true"
+	cfg.StripMarkdown = global["ai.strip_markdown"] == "true"
+	if v := global["ai.max_history"]; v != "" {
+		fmt.Sscanf(v, "%d", &cfg.MaxHistory)
+	}
+	if raw := global["ai.custom_headers"]; raw != "" {
+		var arr [][2]string
+		if json.Unmarshal([]byte(raw), &arr) == nil {
+			cfg.CustomHeaders = make(map[string]string, len(arr))
+			for _, kv := range arr {
+				if kv[0] != "" {
+					cfg.CustomHeaders[kv[0]] = kv[1]
+				}
+			}
+		} else {
+			var obj map[string]string
+			if json.Unmarshal([]byte(raw), &obj) == nil {
+				cfg.CustomHeaders = obj
+			}
+		}
+	}
+
+	return cfg
 }
 
 func main() {
@@ -205,23 +244,25 @@ func main() {
 
 	// Telegram crawler (optional — requires TG_API_ID and TG_API_HASH)
 	if cfg.TGApiID != 0 && cfg.TGApiHash != "" {
-		tgStore := telegram.NewStore(s.(telegram.DBTX))
-		tgClient := telegram.NewClient(cfg.TGApiID, cfg.TGApiHash, tgStore)
+		dbtx, ok := s.(telegram.DBTX)
+		if !ok {
+			slog.Error("telegram crawler disabled: store does not expose SQL primitives")
+		} else {
+			tgDialect := telegram.DialectSQLite
+			if strings.HasPrefix(cfg.DBPath, "postgres://") || strings.HasPrefix(cfg.DBPath, "postgresql://") {
+				tgDialect = telegram.DialectPostgres
+			}
 
-		// Load global AI config for ad classification
-		globalAI := store.AIConfig{}
-		if aiConf, err := s.ListConfigByPrefix("ai."); err == nil && aiConf["ai.api_key"] != "" {
-			globalAI.Enabled = true
-			globalAI.BaseURL = aiConf["ai.base_url"]
-			globalAI.APIKey = aiConf["ai.api_key"]
-			globalAI.Model = aiConf["ai.model"]
+			tgStore := telegram.NewStore(dbtx, tgDialect)
+			tgClient := telegram.NewClient(cfg.TGApiID, cfg.TGApiHash, tgStore)
+			tgProcessor := telegram.NewProcessor(func() store.AIConfig {
+				return resolveTelegramAIConfig(s)
+			}, objStore, tgStore)
+			tgCrawler := telegram.NewCrawler(tgClient, tgStore, tgProcessor)
+			srv.TGCrawler = tgCrawler
+			srv.TGClient = tgClient
+			slog.Info("telegram crawler module initialized", "dialect", tgDialect)
 		}
-
-		tgProcessor := telegram.NewProcessor(globalAI, objStore, tgStore)
-		tgCrawler := telegram.NewCrawler(tgClient, tgStore, tgProcessor)
-		srv.TGCrawler = tgCrawler
-		srv.TGClient = tgClient
-		slog.Info("telegram crawler module initialized")
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
