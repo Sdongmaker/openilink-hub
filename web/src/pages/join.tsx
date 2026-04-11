@@ -271,6 +271,19 @@ export function JoinPage() {
                   </p>
                 </div>
               </div>
+              <div className="flex items-start gap-4 group">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-emerald-400 backdrop-blur-sm border border-white/10 shadow-[inset_0_0_15px_rgba(255,255,255,0.05)] group-hover:bg-white/10 transition-colors duration-500 font-bold">
+                  4
+                </div>
+                <div className="pt-1.5 flex-1">
+                  <h3 className="text-lg font-bold text-white tracking-wide">
+                    激活信道
+                  </h3>
+                  <p className="text-emerald-100/60 leading-relaxed text-sm mt-1 font-light">
+                    向机器人主动发送一条消息以激活通信链路，之后即可正常收发。
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
 
