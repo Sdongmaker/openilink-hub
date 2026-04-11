@@ -17,7 +17,7 @@ These modules are independent from the existing iLink/Bot system. They share onl
 3. Telegram crawler: monitor channels (content collection) and groups (content collection + ad filtering)
 4. Media files stored to existing MinIO/S3 with path-prefix isolation
 5. AI-based ad detection on message text, applied in real-time before storage
-6. Management UI for Telegram account, watch targets, message browsing, and storage configuration
+6. Management UI for Telegram account, watch targets, message browsing, and storage status view
 
 ## Non-Goals
 
@@ -96,6 +96,7 @@ Channels and groups to monitor.
 | title | TEXT | Channel/group display name |
 | username | TEXT | @username (nullable) |
 | enabled | BOOLEAN | Whether monitoring is active |
+| last_error | TEXT | Last error message, nullable (e.g. "kicked from group", "invite link expired") |
 | created_at | TIMESTAMP | |
 
 ### tg_messages
@@ -232,7 +233,7 @@ func (s *Store) GetStats(ctx) (*TGStats, error)
 | Media download fails | Store message without media, `media_key` = NULL, log error |
 | OSS upload fails | Retry up to 3 times with backoff; on final failure discard media, log error |
 | MTProto disconnect | gotd/td auto-reconnect; account status → `disconnected` → `active` on recovery |
-| Watch target kicked/banned | Set `enabled = false`, surface error in admin panel |
+| Watch target kicked/banned | Set `enabled = false`, write reason to `tg_watch_targets.last_error`, returned in target list API |
 
 ## Admin API Routes
 
@@ -267,6 +268,16 @@ PATCH  /api/admin/telegram/targets/{id}        // Enable/disable/update
 DELETE /api/admin/telegram/targets/{id}        // Remove target
 ```
 
+**Target resolution** (`POST /api/admin/telegram/targets`):
+
+Request: `{"input": "@channel_name"}` or `{"input": "https://t.me/+inviteHash"}`
+
+Resolution logic:
+- `@username` → call `tg.Client.ContactsResolveUsername(ctx, username)` to get peer and chat_id
+- `https://t.me/+hash` invite link → call `tg.Client.MessagesCheckChatInvite(ctx, hash)` to get chat info; then `MessagesImportChatInvite` to join if not already a member
+- On success: return `{"id": 1, "chat_id": -100123, "title": "Channel Name", "chat_type": "channel", "username": "channel_name", "enabled": true}`
+- On failure: return `400` with `{"error": "could not resolve: username not found"}` or `{"error": "invite link expired"}`
+
 ### Messages
 
 ```
@@ -283,6 +294,91 @@ GET    /api/admin/telegram/status              // Crawler running state
 POST   /api/admin/telegram/crawler/start       // Start crawler
 POST   /api/admin/telegram/crawler/stop        // Stop crawler
 GET    /api/admin/telegram/stats               // Collection statistics
+```
+
+## API Response Schemas
+
+### GET /api/admin/telegram/account
+
+```json
+{
+  "id": 1,
+  "phone": "+86138xxxx",
+  "status": "active",
+  "last_test_at": "2026-04-11T10:00:00Z",
+  "last_test_ok": true,
+  "created_at": "2026-04-11T09:00:00Z"
+}
+```
+Returns `404` if no account configured.
+
+### POST /api/admin/telegram/account/test
+
+```json
+{
+  "checks": [
+    {"name": "mtproto_connection", "ok": true},
+    {"name": "read_chat_list", "ok": true},
+    {"name": "receive_updates", "ok": true},
+    {"name": "session_persistence", "ok": true}
+  ],
+  "all_passed": true
+}
+```
+
+### GET /api/admin/telegram/targets
+
+```json
+[
+  {
+    "id": 1,
+    "chat_id": -1001234567,
+    "chat_type": "channel",
+    "title": "Example Channel",
+    "username": "example_ch",
+    "enabled": true,
+    "last_error": null,
+    "today_count": 42
+  }
+]
+```
+
+### GET /api/admin/telegram/messages
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "target_id": 1,
+      "target_title": "Example Channel",
+      "sender_name": "User",
+      "content_type": "photo",
+      "text_content": "message text...",
+      "media_key": "telegram/1/500.jpg",
+      "is_ad": false,
+      "ad_confidence": 0.05,
+      "created_at": "2026-04-11T14:32:01Z"
+    }
+  ],
+  "total": 1247,
+  "page": 1,
+  "per_page": 20
+}
+```
+
+### GET /api/admin/telegram/stats
+
+```json
+{
+  "crawler_running": true,
+  "account_status": "active",
+  "target_count": {"channel": 3, "group": 5},
+  "today_total": 1247,
+  "today_ads": 154,
+  "ad_rate": 0.123,
+  "storage_used_bytes": 5368709120
+}
 ```
 
 ## Frontend Pages
@@ -324,9 +420,11 @@ Tech stack: React 19 + TypeScript + Vite + shadcn/ui + TailwindCSS + react-route
 
 ### 6. `/admin/settings/storage` — Storage Config
 
-- View/edit MinIO/S3 settings (endpoint, bucket, access key, etc.)
-- Connection test button
-- Storage usage stats
+- **Read-only view** of current MinIO/S3 settings loaded from environment variables (endpoint, bucket, public URL)
+- Sensitive fields (access key, secret key) are masked
+- Connection test button (verifies the backend can reach the storage service)
+- Storage usage stats (total Telegram media size, file count)
+- To change storage settings, update environment variables and restart the service
 
 ## OSS Storage Layout
 
