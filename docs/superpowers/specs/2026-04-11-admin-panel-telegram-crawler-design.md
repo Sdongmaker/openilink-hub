@@ -77,7 +77,7 @@ Telegram user accounts. Single account initially, schema supports multiple.
 | id | INTEGER PK | Auto-increment |
 | phone | TEXT UNIQUE | Phone number |
 | session_data | BLOB | MTProto session persistence |
-| status | TEXT | `active` / `disconnected` / `auth_required` |
+| status | TEXT | `active` / `disconnected` / `auth_required` / `connecting` |
 | last_test_at | TIMESTAMP | Last connection test time |
 | last_test_ok | BOOLEAN | Last test result |
 | created_at | TIMESTAMP | |
@@ -110,7 +110,7 @@ Collected messages with ad classification.
 | tg_message_id | BIGINT | Original Telegram message ID |
 | sender_id | BIGINT | Sender's Telegram user ID |
 | sender_name | TEXT | Sender display name |
-| content_type | TEXT | `text` / `photo` / `video` / `document` |
+| content_type | TEXT | `text` / `photo` / `video` / `document` / `animation` |
 | text_content | TEXT | Text body |
 | media_key | TEXT | OSS storage key (nullable) |
 | is_ad | BOOLEAN | AI ad classification result |
@@ -131,6 +131,29 @@ Wraps gotd/td. Responsibilities:
 - Auth flow: send code → verify code (+ optional 2FA password) → persist session
 - Auto-reconnect on disconnect (gotd/td built-in)
 - Update account status in DB on state changes
+
+**Account status state machine:**
+
+```
+auth_required ──(send code + verify)──▶ connecting ──(connected)──▶ active
+                                                                      │
+                                                               (disconnect)
+                                                                      ▼
+                                                                disconnected
+                                                                      │
+                                                               (auto-reconnect)
+                                                                      ▼
+                                                                  active
+                                                                      │
+                                                              (session expired)
+                                                                      ▼
+                                                                auth_required
+```
+
+- `auth_required`: No valid session. Admin must complete phone + code flow.
+- `connecting`: Session exists, attempting MTProto handshake.
+- `active`: Connected and receiving updates.
+- `disconnected`: Network loss; gotd/td will auto-reconnect → `active`. If session is invalid → `auth_required`.
 
 ```go
 type Client struct {
@@ -178,9 +201,22 @@ func (c *Crawler) Status() CrawlerStatus
 Receive message
     → Extract text + media metadata
     → Has text? → AI ad classification (real-time)
+    → No text? → is_ad = false, ad_confidence = 0 (skip AI)
     → Has media? → Download via gotd/td → Upload to MinIO
     → Write tg_messages row (text, media_key, is_ad, ad_confidence)
 ```
+
+**Supported media types and extension mapping:**
+
+| Telegram type | content_type | Extension logic |
+|---------------|--------------|------------------|
+| `MessageMediaPhoto` | `photo` | Always `.jpg` (Telegram photos are JPEG) |
+| `MessageMediaDocument` (video) | `video` | Use `document.MimeType` → `.mp4`, `.mov`, etc. |
+| `MessageMediaDocument` (file) | `document` | Use `document.FileName` extension; fallback to mime type mapping |
+| `MessageMediaDocument` (gif) | `animation` | `.mp4` (Telegram GIFs are mp4) |
+| Stickers, audio, voice, etc. | — | **Not downloaded.** Message text still stored if present. |
+
+OSS path: `telegram/{target_id}/{msg_id}.{ext}` where ext is determined by the table above.
 
 ```go
 type Processor struct {
@@ -274,7 +310,7 @@ Request: `{"input": "@channel_name"}` or `{"input": "https://t.me/+inviteHash"}`
 
 Resolution logic:
 - `@username` → call `tg.Client.ContactsResolveUsername(ctx, username)` to get peer and chat_id
-- `https://t.me/+hash` invite link → call `tg.Client.MessagesCheckChatInvite(ctx, hash)` to get chat info; then `MessagesImportChatInvite` to join if not already a member
+- `https://t.me/+hash` invite link → call `tg.Client.MessagesCheckChatInvite(ctx, hash)` to inspect the chat. If the response is `ChatInviteAlready` (user is already a member), extract the chat info directly. Otherwise, call `MessagesImportChatInvite(ctx, hash)` to join, then extract the chat info from the result.
 - On success: return `{"id": 1, "chat_id": -100123, "title": "Channel Name", "chat_type": "channel", "username": "channel_name", "enabled": true}`
 - On failure: return `400` with `{"error": "could not resolve: username not found"}` or `{"error": "invite link expired"}`
 
