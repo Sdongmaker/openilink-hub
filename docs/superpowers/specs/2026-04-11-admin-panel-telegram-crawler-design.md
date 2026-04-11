@@ -216,6 +216,8 @@ Receive message
 | `MessageMediaDocument` (gif) | `animation` | `.mp4` (Telegram GIFs are mp4) |
 | Stickers, audio, voice, etc. | — | **Not downloaded.** Message text still stored if present. |
 
+**Message storage rule:** A message is stored if it has text content OR supported media (photo/video/document/animation). Messages with only unsupported media types (stickers, voice, etc.) and no text are silently discarded.
+
 OSS path: `telegram/{target_id}/{msg_id}.{ext}` where ext is determined by the table above.
 
 ```go
@@ -327,9 +329,16 @@ Query parameters for list: `target_id`, `is_ad` (true/false/omit), `content_type
 
 ```
 GET    /api/admin/telegram/status              // Crawler running state
-POST   /api/admin/telegram/crawler/start       // Start crawler
-POST   /api/admin/telegram/crawler/stop        // Stop crawler
+POST   /api/admin/telegram/crawler/start       // Start crawler (idempotent: returns 200 if already running)
+POST   /api/admin/telegram/crawler/stop        // Stop crawler (idempotent: returns 200 if already stopped)
 GET    /api/admin/telegram/stats               // Collection statistics
+```
+
+### Storage Settings
+
+```
+GET    /api/admin/settings/storage             // Current storage config (read-only)
+POST   /api/admin/settings/storage/test        // Test storage connection
 ```
 
 ## API Response Schemas
@@ -416,6 +425,27 @@ Returns `404` if no account configured.
   "storage_used_bytes": 5368709120
 }
 ```
+
+### GET /api/admin/settings/storage
+
+```json
+{
+  "endpoint": "minio.example.com:9000",
+  "bucket": "openilink",
+  "public_url": "https://cdn.example.com",
+  "ssl": true,
+  "access_key_masked": "AKIA****XXXX",
+  "telegram_file_count": 8432,
+  "telegram_used_bytes": 5368709120
+}
+```
+
+### POST /api/admin/settings/storage/test
+
+```json
+{"ok": true}
+```
+Or on failure: `{"ok": false, "error": "connection refused"}`
 
 ## Frontend Pages
 
