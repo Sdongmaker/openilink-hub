@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -35,6 +36,10 @@ type Config struct {
 	// AstrBot external service
 	AstrBotURL       string // e.g. "http://localhost:6196"
 	AstrBotJWTSecret string
+
+	// Telegram crawler
+	TGApiID   int
+	TGApiHash string
 }
 
 func Parse() *Config {
@@ -64,6 +69,9 @@ func Parse() *Config {
 	// AstrBot
 	cfg.AstrBotURL = envOr("ASTRBOT_URL", "")
 	cfg.AstrBotJWTSecret = envOr("ASTRBOT_JWT_SECRET", "")
+	// Telegram
+	cfg.TGApiID, _ = strconv.Atoi(envOr("TG_API_ID", "0"))
+	cfg.TGApiHash = envOr("TG_API_HASH", "")
 	flag.Parse()
 	return cfg
 }

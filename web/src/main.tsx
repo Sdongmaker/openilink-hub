@@ -9,6 +9,14 @@ import { ThemeProvider } from "./lib/theme";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { JoinPage } from "./pages/join";
+import { AdminGuard } from "./components/admin-guard";
+import { AdminLayout } from "./components/admin-layout";
+import { LoginPage } from "./pages/admin/login";
+import { DashboardPage } from "./pages/admin/dashboard";
+import { AccountPage } from "./pages/admin/account";
+import { TargetsPage } from "./pages/admin/targets";
+import { MessagesPage } from "./pages/admin/messages";
+import { StoragePage } from "./pages/admin/storage";
 
 function RouterProgress() {
   useAnchorProgress({ startOnLoad: false });
@@ -27,6 +35,16 @@ createRoot(document.getElementById("root")!).render(
               <Routes>
                 <Route path="/" element={<JoinPage />} />
                 <Route path="/join" element={<JoinPage />} />
+                <Route path="/admin/login" element={<LoginPage />} />
+                <Route element={<AdminGuard />}>
+                  <Route element={<AdminLayout />}>
+                    <Route path="/admin" element={<DashboardPage />} />
+                    <Route path="/admin/account" element={<AccountPage />} />
+                    <Route path="/admin/targets" element={<TargetsPage />} />
+                    <Route path="/admin/messages" element={<MessagesPage />} />
+                    <Route path="/admin/storage" element={<StoragePage />} />
+                  </Route>
+                </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </BrowserRouter>

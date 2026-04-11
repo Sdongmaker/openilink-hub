@@ -27,6 +27,7 @@ import (
 	"github.com/openilink/openilink-hub/internal/store"
 	"github.com/openilink/openilink-hub/internal/store/postgres"
 	"github.com/openilink/openilink-hub/internal/store/sqlite"
+	"github.com/openilink/openilink-hub/internal/telegram"
 
 	// Register providers
 	_ "github.com/openilink/openilink-hub/internal/provider/ilink"
@@ -202,6 +203,27 @@ func main() {
 	mgr.SetAppWSHub(srv.AppWSHub)
 	mgr.SetPushHub(srv.PushHub)
 
+	// Telegram crawler (optional — requires TG_API_ID and TG_API_HASH)
+	if cfg.TGApiID != 0 && cfg.TGApiHash != "" {
+		tgStore := telegram.NewStore(s.(telegram.DBTX))
+		tgClient := telegram.NewClient(cfg.TGApiID, cfg.TGApiHash, tgStore)
+
+		// Load global AI config for ad classification
+		globalAI := store.AIConfig{}
+		if aiConf, err := s.ListConfigByPrefix("ai."); err == nil && aiConf["ai.api_key"] != "" {
+			globalAI.Enabled = true
+			globalAI.BaseURL = aiConf["ai.base_url"]
+			globalAI.APIKey = aiConf["ai.api_key"]
+			globalAI.Model = aiConf["ai.model"]
+		}
+
+		tgProcessor := telegram.NewProcessor(globalAI, objStore, tgStore)
+		tgCrawler := telegram.NewCrawler(tgClient, tgStore, tgProcessor)
+		srv.TGCrawler = tgCrawler
+		srv.TGClient = tgClient
+		slog.Info("telegram crawler module initialized")
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -229,6 +251,12 @@ func main() {
 		<-ctx.Done()
 		slog.Info("shutting down...")
 		mgr.StopAll()
+		if srv.TGCrawler != nil {
+			srv.TGCrawler.Stop()
+		}
+		if srv.TGClient != nil {
+			srv.TGClient.Stop()
+		}
 		shutCtx, shutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutCancel()
 		httpSrv.Shutdown(shutCtx)

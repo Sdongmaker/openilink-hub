@@ -13,6 +13,7 @@ import (
 	"github.com/openilink/openilink-hub/internal/relay"
 	"github.com/openilink/openilink-hub/internal/storage"
 	"github.com/openilink/openilink-hub/internal/store"
+	"github.com/openilink/openilink-hub/internal/telegram"
 	"github.com/openilink/openilink-hub/internal/web"
 )
 
@@ -30,6 +31,8 @@ type Server struct {
 	AppWSHub       *app.WSHub
 	PushHub        *push.Hub
 	Version        string
+	TGCrawler      *telegram.Crawler // optional: Telegram crawler
+	TGClient       *telegram.Client  // optional: Telegram MTProto client
 }
 
 func cors(next http.Handler) http.Handler {
@@ -235,6 +238,28 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("POST /api/admin/registries", s.requireAdmin(s.handleCreateRegistry))
 	protected.HandleFunc("PUT /api/admin/registries/{id}", s.requireAdmin(s.handleUpdateRegistry))
 	protected.HandleFunc("DELETE /api/admin/registries/{id}", s.requireAdmin(s.handleDeleteRegistry))
+
+	// --- Admin: Telegram crawler ---
+	if s.TGCrawler != nil {
+		protected.HandleFunc("GET /api/admin/telegram/account", s.requireAdmin(s.handleTelegramGetAccount))
+		protected.HandleFunc("POST /api/admin/telegram/account", s.requireAdmin(s.handleTelegramCreateAccount))
+		protected.HandleFunc("DELETE /api/admin/telegram/account", s.requireAdmin(s.handleTelegramDeleteAccount))
+		protected.HandleFunc("POST /api/admin/telegram/auth/send-code", s.requireAdmin(s.handleTelegramSendCode))
+		protected.HandleFunc("POST /api/admin/telegram/auth/verify", s.requireAdmin(s.handleTelegramVerify))
+		protected.HandleFunc("POST /api/admin/telegram/account/test", s.requireAdmin(s.handleTelegramTest))
+		protected.HandleFunc("GET /api/admin/telegram/targets", s.requireAdmin(s.handleTelegramListTargets))
+		protected.HandleFunc("POST /api/admin/telegram/targets", s.requireAdmin(s.handleTelegramCreateTarget))
+		protected.HandleFunc("PUT /api/admin/telegram/targets/{id}", s.requireAdmin(s.handleTelegramUpdateTarget))
+		protected.HandleFunc("DELETE /api/admin/telegram/targets/{id}", s.requireAdmin(s.handleTelegramDeleteTarget))
+		protected.HandleFunc("GET /api/admin/telegram/messages", s.requireAdmin(s.handleTelegramListMessages))
+		protected.HandleFunc("GET /api/admin/telegram/messages/{id}", s.requireAdmin(s.handleTelegramGetMessage))
+		protected.HandleFunc("POST /api/admin/telegram/crawler/start", s.requireAdmin(s.handleTelegramCrawlerStart))
+		protected.HandleFunc("POST /api/admin/telegram/crawler/stop", s.requireAdmin(s.handleTelegramCrawlerStop))
+		protected.HandleFunc("GET /api/admin/telegram/status", s.requireAdmin(s.handleTelegramStatus))
+		protected.HandleFunc("GET /api/admin/telegram/stats", s.requireAdmin(s.handleTelegramStats))
+		protected.HandleFunc("GET /api/admin/telegram/storage", s.requireAdmin(s.handleStorageSettings))
+		protected.HandleFunc("POST /api/admin/telegram/storage/test", s.requireAdmin(s.handleStorageTest))
+	}
 
 	// --- Admin: system config ---
 	protected.HandleFunc("GET /api/admin/config/oauth", s.requireAdmin(s.handleGetOAuthConfig))
